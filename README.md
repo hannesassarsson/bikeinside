@@ -13,6 +13,7 @@ Har du ingen trainer inkopplad kan du cykla med piltangenterna (↑/↓ ändrar 
 
 ## Funktioner
 
+- **3D-grafik med RealityKit** och en egen Metal-shader för färg och dis, mjuka skuggor och himmel med moln.
 - **Tre världar** som genereras i kod: *Skogsslingan* (kuperad skog), *Sjörundan* (platt runda runt en insjö) och *Fjällvägen* (lång klättring upp mot kalfjället). Där finns granar, tallar, björkar, röda stugor med vita knutar och flaggstänger.
 - **Realistisk fysik**: lutning, rullmotstånd, luftmotstånd (CdA räknas från längd och vikt), luftens densitet på höjd, rotationströghet och drafting.
 - **Smart trainer via Bluetooth FTMS** med backsimulering (justerbar "trainerkänsla") och ERG-läge. Wattmätare (CPS), pulsband (HRS) och kadenssensorer (CSC) stöds också. Enheterna återansluts automatiskt.
@@ -21,7 +22,8 @@ Har du ingen trainer inkopplad kan du cykla med piltangenterna (↑/↓ ändrar 
 - **Segment**: klättringar och spurter tas med tid, och personbästa sparas.
 - **Statistik**: NP, IF, TSS, tid i zoner och bästa effekt (5 s, 1 min, 5 min, 20 min).
 - **Export** till `.fit`, som fungerar i Strava, Garmin Connect, TrainingPeaks och intervals.icu.
-- Fem kameravinklar och en HUD med effektzoner, höjdprofil och ledartavla.
+- Fem kameravinklar och en HUD med effektzoner, höjdprofil, minikarta och ledartavla.
+- Detaljerade cyklar (kedja, kassett, flaska, höga fälgar) och cyklister vars ben följer pedalerna efter din kadens.
 
 ### Kortkommandon under åkning
 
@@ -47,7 +49,8 @@ BikeinsideCore/     Swift-paket utan UI (byggs och testas även på Linux)
   Workouts/         pass, passbibliotek, .erg/.mrc-import
   Ride/             åkmotor (fysik, bottar, segment, varv, inspelning), statistik
   Export/           FIT-kodare
-Bikeinside/         macOS-appen (SwiftUI + SceneKit + CoreBluetooth)
+Bikeinside/         macOS-appen (SwiftUI + RealityKit + CoreBluetooth)
+  World/            RealityKit-scen, Metal-shader (vertexfärg + dis), animerade cyklister
 ```
 
 All logik som går att testa ligger i `BikeinsideCore` och täcks av enhetstester:
