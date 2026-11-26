@@ -90,3 +90,22 @@ import Testing
         }
     }
 }
+
+@Suite struct LegIKTests {
+    @Test func kneeKeepsBoneLengthsAndBendsForward() {
+        let hip = Vec2(-0.17, 0.93)
+        for k in 0..<36 {
+            let a = Double(k) / 36 * 2 * .pi
+            let foot = LegIK.pedal(bottomBracket: Vec2(0, 0.3), crankLength: 0.17, angle: a)
+            let knee = LegIK.knee(hip: hip, foot: foot, upper: 0.44, lower: 0.43)
+            #expect(abs((knee - hip).length - 0.44) < 1e-6)
+            #expect(abs((foot - knee).length - 0.43) < 1e-6)
+            #expect(knee.x > hip.x)
+        }
+    }
+
+    @Test func outOfReachStraightens() {
+        let knee = LegIK.knee(hip: Vec2(0, 1), foot: Vec2(0, -5), upper: 0.5, lower: 0.5)
+        #expect(abs(knee.x) < 1e-3 && abs(knee.y - 0.5) < 1e-3)
+    }
+}
