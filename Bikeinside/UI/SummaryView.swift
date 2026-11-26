@@ -172,15 +172,18 @@ struct RideChart: View {
     }
 
     var body: some View {
-        let pts = points
+        chart(points)
+    }
+
+    private func chart(_ pts: [(t: Double, power: Double, elevation: Double)]) -> some View {
         let eMin = pts.map(\.elevation).min() ?? 0
         let eMax = pts.map(\.elevation).max() ?? 1
         let pMax = max(pts.map(\.power).max() ?? 1, ftp * 1.2)
-        // map elevation into the power axis range for a shared chart
-        func scaleE(_ e: Double) -> Double { (e - eMin) / max(eMax - eMin, 20) * pMax * 0.6 }
-        Chart {
+        // elevation is drawn in the power axis range so both share one chart
+        let eScaled = pts.map { ($0.elevation - eMin) / max(eMax - eMin, 20) * pMax * 0.6 }
+        return Chart {
             ForEach(pts.indices, id: \.self) { i in
-                AreaMark(x: .value("Minut", pts[i].t), y: .value("Höjd", scaleE(pts[i].elevation)))
+                AreaMark(x: .value("Minut", pts[i].t), y: .value("Höjd", eScaled[i]))
                     .foregroundStyle(.white.opacity(0.10))
             }
             ForEach(pts.indices, id: \.self) { i in

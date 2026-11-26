@@ -90,10 +90,11 @@ final class RideController {
 
     private func load() async {
         let route = engine.route
-        let geometry = await Task.detached(priority: .userInitiated) { [weak self] in
-            WorldBuilder.build(route: route) { p in
-                Task { @MainActor in self?.loadProgress = p }
-            }
+        let report: @Sendable (Double) -> Void = { [weak self] p in
+            Task { @MainActor in self?.loadProgress = p }
+        }
+        let geometry = await Task.detached(priority: .userInitiated) {
+            WorldBuilder.build(route: route, progress: report)
         }.value
         let rider = engine.config.rider
         let bots = engine.config.bots
