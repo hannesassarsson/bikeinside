@@ -21,7 +21,7 @@ public struct TerrainStyle: Sendable {
             return TerrainStyle(hillAmplitude: 16, hillWavelength: 700, mountainAmplitude: 40, forestCoverage: 0.55,
                                 treeLine: nil, snowLine: nil, lakeInsideLoop: true)
         case .mountain:
-            return TerrainStyle(hillAmplitude: 55, hillWavelength: 700, mountainAmplitude: 700, forestCoverage: 0.6,
+            return TerrainStyle(hillAmplitude: 55, hillWavelength: 700, mountainAmplitude: 700, forestCoverage: 0.32,
                                 treeLine: 540, snowLine: 760, lakeInsideLoop: false)
         }
     }

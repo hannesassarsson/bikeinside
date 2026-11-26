@@ -84,7 +84,7 @@ final class ScreenshotDirector {
                 c.frame(dt: 0.1)
                 steps += 1
                 if Double(steps) * 0.1 > 60, tour.untilClimb, c.engine.activeSegment?.segment.kind == .climb,
-                   c.engine.activeSegment!.progress > 0.35 { break }
+                   c.engine.activeSegment!.progress > 0.75 { break }
                 if !tour.untilClimb, Double(steps) * 0.1 >= target { break }
             }
             await wait(2.5) // let real frames render and HUD/camera settle
