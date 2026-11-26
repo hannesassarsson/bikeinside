@@ -35,6 +35,8 @@ struct Atmosphere {
         }
     }
 
+    var horizonNSColor: NSColor { NSColor(calibratedRed: horizon.x, green: horizon.y, blue: horizon.z, alpha: 1) }
+
     /// Horizon colour in linear space (for the fog shader).
     var fogLinear: SIMD3<Float> {
         SIMD3(Float(pow(horizon.x, 2.2)), Float(pow(horizon.y, 2.2)), Float(pow(horizon.z, 2.2)))

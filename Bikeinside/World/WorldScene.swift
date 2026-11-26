@@ -28,27 +28,38 @@ final class WorldScene {
 
         // Sky dome (unlit, follows the camera) + image-based ambient light from the same sky.
         let skyImage = atmosphere.skyImage(seed: route.seed)
-        var skyMaterial = UnlitMaterial(color: atmosphere.sunColor)
-        if let skyImage, let tex = try? TextureResource.generate(from: skyImage, options: .init(semantic: .color)) {
-            skyMaterial.color = .init(tint: .white, texture: .init(tex))
-        }
+        var skyMaterial = UnlitMaterial(color: atmosphere.horizonNSColor)
         skyMaterial.faceCulling = .front
-        sky = ModelEntity(mesh: .generateSphere(radius: 1), materials: [skyMaterial])
-        sky.scale = SIMD3(repeating: 4000)
-        root.addChild(sky)
+        let skyEntity = ModelEntity(mesh: .generateSphere(radius: 1), materials: [skyMaterial])
+        skyEntity.scale = SIMD3(repeating: 4000)
+        sky = skyEntity
+        root.addChild(skyEntity)
 
         var receivers: [Entity] = []
         let ibl = Entity()
-        if let skyImage, let env = try? EnvironmentResource.generate(fromEquirectangular: skyImage) {
-            ibl.components.set(ImageBasedLightComponent(source: .single(env), intensityExponent: atmosphere.ambientExponent))
-        }
         root.addChild(ibl)
+        // Sky texture and image-based light are created asynchronously.
+        if let skyImage {
+            let sky = skyEntity, exponent = Atmosphere.forTheme(route.theme).ambientExponent
+            Task { @MainActor in
+                if let tex = try? await TextureResource(image: skyImage, options: .init(semantic: .color)) {
+                    var m = UnlitMaterial()
+                    m.color = .init(tint: .white, texture: .init(tex))
+                    m.faceCulling = .front
+                    sky.model?.materials = [m]
+                }
+                if let env = try? await EnvironmentResource(equirectangular: skyImage) {
+                    ibl.components.set(ImageBasedLightComponent(source: .single(env), intensityExponent: exponent))
+                }
+            }
+        }
 
+        let world = root
         func add(_ mesh: Mesh, material: CustomMaterial, shadows: Bool) throws {
             guard !mesh.isEmpty else { return }
             let e = ModelEntity(mesh: try mesh.meshResource(), materials: [material])
             e.components.set(DynamicLightShadowComponent(castsShadow: shadows))
-            root.addChild(e)
+            world.addChild(e)
             receivers.append(e)
         }
         for c in geometry.terrainChunks { try add(c.mesh, material: materials.ground, shadows: false) }
