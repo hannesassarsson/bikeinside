@@ -1,7 +1,5 @@
 import AppKit
-import Metal
 import BikeinsideCore
-import SceneKit
 import SwiftUI
 
 /// Automated tour used by CI to produce screenshots of the real app.
@@ -140,16 +138,6 @@ final class ScreenshotDirector {
             view.cacheDisplay(in: view.bounds, to: rep)
             if let data = rep.representation(using: .png, properties: [:]) {
                 try? data.write(to: dir.appendingPathComponent("\(name)-appkit.png"))
-            }
-        }
-        // Fallback: offscreen SceneKit render of the 3D world.
-        if let world = controller?.world, let device = MTLCreateSystemDefaultDevice() {
-            let r = SCNRenderer(device: device, options: nil)
-            r.scene = world.scene
-            r.pointOfView = world.cameraNode
-            let img = r.snapshot(atTime: CACurrentMediaTime(), with: CGSize(width: 1440, height: 900), antialiasingMode: .multisampling4X)
-            if let tiff = img.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff), let png = rep.representation(using: .png, properties: [:]) {
-                try? png.write(to: dir.appendingPathComponent("\(name)-3d.png"))
             }
         }
     }

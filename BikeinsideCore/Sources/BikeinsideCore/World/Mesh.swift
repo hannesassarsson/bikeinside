@@ -140,6 +140,36 @@ public enum Primitives {
         }
     }
 
+    /// Tube (open cylinder) from `a` to `b` in any direction, optionally with
+    /// rounded (low-poly ball) ends so joints look smooth.
+    public static func tube(
+        into m: inout Mesh, from a: Float3, to b: Float3, radius: Float, sides: Int = 8,
+        color: Float3, roundEnds: Bool = false
+    ) {
+        let axis = b - a
+        let len = (axis * axis).sum().squareRoot()
+        guard len > 1e-6 else { return }
+        let d = axis / len
+        let ref: Float3 = abs(d.y) < 0.9 ? Float3(0, 1, 0) : Float3(1, 0, 0)
+        let u = Mesh.normalize(cross(d, ref))
+        let v = cross(d, u)
+        for k in 0..<sides {
+            let t0 = Float(k) / Float(sides) * 2 * .pi
+            let t1 = Float(k + 1) / Float(sides) * 2 * .pi
+            let o0 = (u * cos(t0) + v * sin(t0)) * radius
+            let o1 = (u * cos(t1) + v * sin(t1)) * radius
+            m.addQuad(a + o0, a + o1, b + o1, b + o0, color: color)
+        }
+        if roundEnds {
+            blob(into: &m, center: a, radius: Float3(repeating: radius), color: color)
+            blob(into: &m, center: b, radius: Float3(repeating: radius), color: color)
+        }
+    }
+
+    static func cross(_ a: Float3, _ b: Float3) -> Float3 {
+        Float3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x)
+    }
+
     /// Axis-aligned box from min to max corner.
     public static func box(into m: inout Mesh, min a: Float3, max b: Float3, color: Float3, bottom: Bool = false) {
         let p000 = Float3(a.x, a.y, a.z), p100 = Float3(b.x, a.y, a.z)

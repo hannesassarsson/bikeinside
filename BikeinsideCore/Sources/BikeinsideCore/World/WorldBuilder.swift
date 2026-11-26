@@ -8,6 +8,8 @@ public struct WorldGeometry: Sendable {
     public var sceneryChunks: [Terrain.Chunk]
     public var road: Mesh
     public var arches: Mesh
+    /// Lake surface (nil when the route has no water).
+    public var water: Mesh?
     public var stats: Stats
 
     public struct Stats: Sendable {
@@ -32,8 +34,19 @@ public enum WorldBuilder {
         let arches = buildArches(route: route)
         stats.triangles = chunks.reduce(0) { $0 + $1.mesh.triangleCount }
             + scenery.reduce(0) { $0 + $1.mesh.triangleCount } + road.triangleCount + arches.triangleCount
+        var water: Mesh?
+        if let w = route.waterLevel {
+            // One big quad well beyond the terrain so the horizon is water, not void.
+            var m = Mesh()
+            let x0 = Float(terrain.originX - 3000), x1 = Float(terrain.originX + terrain.width + 3000)
+            let z0 = Float(terrain.originZ - 3000), z1 = Float(terrain.originZ + terrain.depth + 3000)
+            let y = Float(w)
+            let blue = Float3(0.16, 0.36, 0.50)
+            m.addQuad(Float3(x0, y, z0), Float3(x0, y, z1), Float3(x1, y, z1), Float3(x1, y, z0), color: blue)
+            water = m
+        }
         progress?(1)
-        return WorldGeometry(terrain: terrain, terrainChunks: chunks, sceneryChunks: scenery, road: road, arches: arches, stats: stats)
+        return WorldGeometry(terrain: terrain, terrainChunks: chunks, sceneryChunks: scenery, road: road, arches: arches, water: water, stats: stats)
     }
 
     // MARK: Road

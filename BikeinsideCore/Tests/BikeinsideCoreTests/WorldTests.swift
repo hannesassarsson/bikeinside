@@ -109,3 +109,40 @@ import Testing
         #expect(abs(knee.x) < 1e-3 && abs(knee.y - 0.5) < 1e-3)
     }
 }
+
+@Suite struct AvatarTests {
+    @Test func meshesAreValidAndOutward() {
+        let g = AvatarGeometry(heightCm: 180)
+        for m in [AvatarMeshes.bike(accent: Float3(1, 0, 0)), AvatarMeshes.wheel(), AvatarMeshes.crank(),
+                  AvatarMeshes.body(jersey: Float3(0, 0, 1), geometry: g), AvatarMeshes.limb(radius: 0.06, color: Float3(1, 1, 1)),
+                  AvatarMeshes.shoe(), AvatarMeshes.joint(radius: 0.05, color: Float3(1, 1, 1))] {
+            #expect(!m.isEmpty)
+            #expect(m.indices.allSatisfy { Int($0) < m.vertexCount })
+            #expect(m.normals.allSatisfy { abs(($0 * $0).sum() - 1) < 1e-3 })
+            #expect(m.vertexCount < 6000)
+        }
+        // a vertical tube has outward normals
+        let limb = AvatarMeshes.limb(radius: 0.1, color: Float3(1, 1, 1))
+        for t in 0..<limb.triangleCount {
+            let a = limb.positions[Int(limb.indices[3 * t])], b = limb.positions[Int(limb.indices[3 * t + 1])], c = limb.positions[Int(limb.indices[3 * t + 2])]
+            let centroid = (a + b + c) / 3
+            let n = Mesh.faceNormal(a, b, c)
+            #expect(n.x * centroid.x + n.z * centroid.z > 0)
+        }
+    }
+
+    @Test func legReachesPedalWithFixedBones() {
+        let g = AvatarGeometry(heightCm: 175)
+        for k in 0..<24 {
+            let a = Double(k) / 24 * 2 * .pi
+            for side: Float in [-1, 1] {
+                let l = g.leg(crankAngle: a, side: side)
+                let thigh = l.knee - l.hip, shin = l.ankle - l.knee
+                let tl = (Float3(thigh.x, thigh.y, 0) * Float3(thigh.x, thigh.y, 0)).sum().squareRoot()
+                let sl = (Float3(shin.x, shin.y, 0) * Float3(shin.x, shin.y, 0)).sum().squareRoot()
+                #expect(abs(tl - g.thighLength) < 1e-3)
+                #expect(abs(sl - g.shinLength) < 1e-3)
+            }
+        }
+    }
+}

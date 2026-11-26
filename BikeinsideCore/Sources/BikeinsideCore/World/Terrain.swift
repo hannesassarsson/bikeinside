@@ -21,8 +21,8 @@ public struct TerrainStyle: Sendable {
             return TerrainStyle(hillAmplitude: 16, hillWavelength: 700, mountainAmplitude: 40, forestCoverage: 0.55,
                                 treeLine: nil, snowLine: nil, lakeInsideLoop: true)
         case .mountain:
-            return TerrainStyle(hillAmplitude: 45, hillWavelength: 800, mountainAmplitude: 520, forestCoverage: 0.6,
-                                treeLine: 560, snowLine: 790, lakeInsideLoop: false)
+            return TerrainStyle(hillAmplitude: 55, hillWavelength: 700, mountainAmplitude: 700, forestCoverage: 0.6,
+                                treeLine: 540, snowLine: 760, lakeInsideLoop: false)
         }
     }
 }
@@ -237,10 +237,13 @@ public struct Terrain: Sendable {
                     let m = peaks.fbm(x / 1500, z / 1500, octaves: 5) * 0.5 + 0.5
                     // ridged detail makes peaks look rocky
                     let ridge = 1 - abs(peaks.fbm(x / 380 + 9.1, z / 380 - 3.7, octaves: 3))
-                    h += style.mountainAmplitude * pow(m, 1.6) * (0.8 + 0.2 * ridge) * Interp.smoothstep(260, 1700, d)
+                    // Mountains rise from ~120 m off the road so they tower over you on the climb.
+                    let near = style.mountainAmplitude > 300 ? 120.0 : 260.0
+                    h += style.mountainAmplitude * pow(m, 1.4) * (0.75 + 0.25 * ridge) * Interp.smoothstep(near, near + 1100, d)
                 }
                 if style.lakeInsideLoop, inside[node], let w = route.waterLevel {
-                    h = Interp.mix(h, w - 9, Interp.smoothstep(45, 260, d))
+                    // shore starts right by the road so the lake is visible while riding
+                    h = Interp.mix(h, w - 9, Interp.smoothstep(14, 120, d))
                 }
                 // Road bed: slightly below the road surface, blending out over ~30 m.
                 let bed = roadElev - 0.45

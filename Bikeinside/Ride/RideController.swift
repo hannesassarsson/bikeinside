@@ -98,7 +98,12 @@ final class RideController {
         }.value
         let rider = engine.config.rider
         let bots = engine.config.bots
-        world = WorldScene(route: route, geometry: geometry, rider: rider, bots: bots, showNames: showNames)
+        do {
+            world = try WorldScene(route: route, geometry: geometry, rider: rider, bots: bots, showNames: showNames)
+        } catch {
+            loadError = "Kunde inte bygga 3D-världen: \(error.localizedDescription)"
+            return
+        }
         loadProgress = 1
         publishHUD()
         if case .workout(let w) = engine.config.mode {

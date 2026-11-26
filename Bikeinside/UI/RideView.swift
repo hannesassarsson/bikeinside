@@ -8,11 +8,19 @@ struct RideView: View {
 
     var body: some View {
         ZStack {
-            WorldView(controller: controller)
-                .ignoresSafeArea()
-                .opacity(controller.isLoaded ? 1 : 0)
+            if controller.isLoaded {
+                WorldView(controller: controller)
+                    .ignoresSafeArea()
+            }
 
-            if !controller.isLoaded {
+            if let error = controller.loadError {
+                VStack(spacing: 14) {
+                    Label(error, systemImage: "exclamationmark.triangle.fill").foregroundStyle(Theme.warn)
+                    Button("Tillbaka") { controller.finish(save: false) }.buttonStyle(SecondaryButtonStyle())
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Theme.background)
+            } else if !controller.isLoaded {
                 LoadingView(routeName: controller.engine.route.name, progress: controller.loadProgress)
             } else {
                 HUDOverlay(controller: controller)
@@ -104,6 +112,7 @@ struct HUDOverlay: View {
                     if let seg = hud.segment {
                         SegmentPanel(segment: seg.segment, progress: seg.progress, seconds: seg.seconds, route: controller.engine.route)
                     }
+                    BannerStack(banners: controller.banners)
                 }
                 .frame(width: 330, alignment: .leading)
 
@@ -121,9 +130,6 @@ struct HUDOverlay: View {
             }
             .padding(.horizontal, 18)
             .padding(.top, 34)
-
-            BannerStack(banners: controller.banners)
-                .padding(.top, 14)
 
             Spacer()
 
@@ -524,21 +530,24 @@ struct BannerStack: View {
     let banners: [Banner]
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 8) {
             ForEach(banners) { b in
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     Image(systemName: b.symbol)
-                        .font(.system(size: 22, weight: .bold))
+                        .font(.system(size: 18, weight: .bold))
                         .foregroundStyle(b.color)
+                        .frame(width: 24)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(b.title).font(.system(size: 16, weight: .bold))
-                        Text(b.subtitle).font(.system(size: 12)).foregroundStyle(Theme.textSecondary)
+                        Text(b.title).font(.system(size: 14, weight: .bold)).lineLimit(1)
+                        Text(b.subtitle).font(.system(size: 11)).foregroundStyle(Theme.textSecondary).lineLimit(1)
                     }
+                    Spacer(minLength: 0)
                 }
-                .padding(.horizontal, 18)
-                .padding(.vertical, 10)
-                .glass(14)
-                .transition(.move(edge: .top).combined(with: .opacity))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .glass(12)
+                .transition(.move(edge: .leading).combined(with: .opacity))
             }
         }
         .animation(.spring(duration: 0.35), value: banners)
