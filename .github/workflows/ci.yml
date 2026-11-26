@@ -57,3 +57,20 @@ jobs:
           name: Bikeinside-app
           path: Bikeinside.zip
           retention-days: 14
+      - name: Screenshots
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          mkdir -p shots
+          BIKEINSIDE_SCREENSHOTS="$PWD/shots" build/Build/Products/Release/Bikeinside.app/Contents/MacOS/Bikeinside &
+          PID=$!
+          for i in $(seq 1 480); do kill -0 $PID 2>/dev/null || break; sleep 1; done
+          kill $PID 2>/dev/null || true
+          ls -la shots
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: shots
+          retention-days: 14
