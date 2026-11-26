@@ -9,7 +9,7 @@ using namespace metal;
 
 static void bikeinsideShade(realitykit::surface_parameters params, half roughness, half specular)
 {
-    half3 srgb = params.geometry().color().rgb;
+    half3 srgb = half3(params.geometry().color().rgb);
     half3 base = pow(max(srgb, half3(0.0h)), half3(2.2h));
 
     float4 fog = params.uniforms().custom_parameter();
