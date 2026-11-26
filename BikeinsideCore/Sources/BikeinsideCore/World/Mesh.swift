@@ -166,6 +166,66 @@ public enum Primitives {
         }
     }
 
+    /// Smooth-shaded tube (shared ring vertices with radial normals) from `a`
+    /// (radius `r0`) to `b` (radius `r1`). Looks round with few facets.
+    public static func smoothTube(
+        into m: inout Mesh, from a: Float3, to b: Float3, radius r0: Float, endRadius r1: Float? = nil,
+        sides: Int = 12, color: Float3, roundEnds: Bool = false
+    ) {
+        let axis = b - a
+        let len = (axis * axis).sum().squareRoot()
+        guard len > 1e-6 else { return }
+        let r1 = r1 ?? r0
+        let d = axis / len
+        let ref: Float3 = abs(d.y) < 0.9 ? Float3(0, 1, 0) : Float3(1, 0, 0)
+        let u = Mesh.normalize(cross(d, ref))
+        let v = cross(d, u)
+        // slope term so normals are correct on tapered tubes
+        let slope = (r0 - r1) / len
+        let base = UInt32(m.vertexCount)
+        for k in 0..<sides {
+            let t = Float(k) / Float(sides) * 2 * .pi
+            let radial = u * cos(t) + v * sin(t)
+            let n = Mesh.normalize(radial + d * slope)
+            m.addVertex(a + radial * r0, normal: n, color: color)
+            m.addVertex(b + radial * r1, normal: n, color: color)
+        }
+        for k in 0..<sides {
+            let k1 = (k + 1) % sides
+            let a0 = base + UInt32(2 * k), b0 = a0 + 1
+            let a1 = base + UInt32(2 * k1), b1 = a1 + 1
+            m.indices.append(contentsOf: [a0, a1, b1, a0, b1, b0])
+        }
+        if roundEnds {
+            smoothSphere(into: &m, center: a, radius: r0, color: color)
+            smoothSphere(into: &m, center: b, radius: r1, color: color)
+        }
+    }
+
+    /// Smooth-shaded UV sphere (or ellipsoid via `scale`).
+    public static func smoothSphere(
+        into m: inout Mesh, center: Float3, radius: Float, scale: Float3 = Float3(1, 1, 1),
+        rings: Int = 8, segments: Int = 12, color: Float3
+    ) {
+        let base = UInt32(m.vertexCount)
+        for i in 0...rings {
+            let phi = Float(i) / Float(rings) * .pi
+            for j in 0...segments {
+                let th = Float(j) / Float(segments) * 2 * .pi
+                let unit = Float3(sin(phi) * cos(th), cos(phi), -sin(phi) * sin(th))
+                let n = Mesh.normalize(unit / scale)
+                m.addVertex(center + unit * scale * radius, normal: n, color: color)
+            }
+        }
+        let w = UInt32(segments + 1)
+        for i in 0..<UInt32(rings) {
+            for j in 0..<UInt32(segments) {
+                let a = base + i * w + j, b = a + w
+                m.indices.append(contentsOf: [a, b, b + 1, a, b + 1, a + 1])
+            }
+        }
+    }
+
     static func cross(_ a: Float3, _ b: Float3) -> Float3 {
         Float3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x)
     }

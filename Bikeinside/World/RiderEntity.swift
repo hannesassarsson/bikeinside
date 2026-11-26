@@ -32,9 +32,9 @@ final class RiderEntity {
         init() throws {
             wheel = try AvatarMeshes.wheel().meshResource()
             crank = try AvatarMeshes.crank().meshResource()
-            thigh = try AvatarMeshes.limb(radius: 0.068, color: AvatarMeshes.shorts).meshResource()
-            shin = try AvatarMeshes.limb(radius: 0.048, color: AvatarMeshes.skin).meshResource()
-            joint = try AvatarMeshes.joint(radius: 0.052, color: AvatarMeshes.skin).meshResource()
+            thigh = try AvatarMeshes.limb(radius: 0.072, color: AvatarMeshes.shorts, endRadius: 0.055, bandColor: AvatarMeshes.skin, bandFrom: 0.72).meshResource()
+            shin = try AvatarMeshes.limb(radius: 0.052, color: AvatarMeshes.skin, endRadius: 0.036, bandColor: AvatarMeshes.white, bandFrom: 0.68).meshResource()
+            joint = try AvatarMeshes.joint(radius: 0.056, color: AvatarMeshes.skin).meshResource()
             shoe = try AvatarMeshes.shoe().meshResource()
         }
     }

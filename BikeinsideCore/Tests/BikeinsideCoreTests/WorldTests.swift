@@ -146,3 +146,42 @@ import Testing
         }
     }
 }
+
+@Suite struct BackdropTests {
+    @Test(arguments: RouteLibrary.all.map(\.id))
+    func backdropSurroundsTerrainAndFacesInwards(id: String) throws {
+        let route = RouteBuilder.build(try #require(RouteLibrary.blueprint(id: id)))
+        let world = WorldBuilder.build(route: route)
+        let t = world.terrain
+        let b = world.backdrop
+        #expect(!b.isEmpty && !world.furniture.isEmpty)
+        let c = Float3(Float(t.originX + t.width / 2), 0, Float(t.originZ + t.depth / 2))
+        let half = Float(max(t.width, t.depth) / 2)
+        for k in stride(from: 0, to: b.triangleCount, by: 37) {
+            let p0 = b.positions[Int(b.indices[3 * k])], p1 = b.positions[Int(b.indices[3 * k + 1])], p2 = b.positions[Int(b.indices[3 * k + 2])]
+            let centroid = (p0 + p1 + p2) / 3
+            let toCenter = Float3(c.x - centroid.x, 0, c.z - centroid.z)
+            let r = (toCenter * toCenter).sum().squareRoot()
+            #expect(r > half * 0.9, "backdrop inside the terrain")
+            let n = Mesh.faceNormal(p0, p1, p2)
+            #expect(n.x * toCenter.x + n.z * toCenter.z >= -1e-3, "face points away from the rider")
+        }
+        if route.theme == .mountain {
+            #expect(b.positions.map(\.y).max()! > Float(route.maxElevation) + 400, "fjäll must tower over the road")
+        }
+    }
+
+    @Test func smoothPrimitivesAreOutward() {
+        var m = Mesh()
+        Primitives.smoothSphere(into: &m, center: Float3(), radius: 1, color: Float3(1, 1, 1))
+        Primitives.smoothTube(into: &m, from: Float3(0, -1, 0), to: Float3(0, 1, 0), radius: 0.5, endRadius: 0.3, color: Float3(1, 1, 1))
+        for t in 0..<m.triangleCount {
+            let a = m.positions[Int(m.indices[3 * t])], b = m.positions[Int(m.indices[3 * t + 1])], c = m.positions[Int(m.indices[3 * t + 2])]
+            let area = Mesh.faceNormal(a, b, c)
+            let centroid = (a + b + c) / 3
+            // degenerate pole triangles have no area; skip them
+            if ((b - a) * (b - a)).sum() < 1e-10 || ((c - a) * (c - a)).sum() < 1e-10 || ((c - b) * (c - b)).sum() < 1e-10 { continue }
+            #expect((area * Float3(centroid.x, 0, centroid.z)).sum() >= -1e-4 || abs(centroid.y) > 0.9)
+        }
+    }
+}

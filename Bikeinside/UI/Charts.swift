@@ -98,3 +98,61 @@ struct WorkoutChart: View {
         }
     }
 }
+
+/// Top-down map of the route with every rider, north up.
+struct MiniMap: View {
+    let route: Route
+    let player: Double
+    let others: [Double]
+
+    var body: some View {
+        Canvas { ctx, size in
+            let step = max(1, route.points.count / 400)
+            let pts = stride(from: 0, to: route.points.count, by: step).map { route.points[$0] }
+            let xs = pts.map(\.x), zs = pts.map(\.z)
+            let minX = xs.min() ?? 0, maxX = xs.max() ?? 1, minZ = zs.min() ?? 0, maxZ = zs.max() ?? 1
+            let inset: CGFloat = 14
+            let scale = min((size.width - 2 * inset) / CGFloat(maxX - minX), (size.height - 2 * inset) / CGFloat(maxZ - minZ))
+            let ox = (size.width - CGFloat(maxX - minX) * scale) / 2, oz = (size.height - CGFloat(maxZ - minZ) * scale) / 2
+            func map(_ p: Vec3) -> CGPoint {
+                CGPoint(x: ox + CGFloat(p.x - minX) * scale, y: oz + CGFloat(p.z - minZ) * scale)
+            }
+            if route.theme == .lake {
+                var lake = Path()
+                lake.addLines(pts.map(map))
+                lake.closeSubpath()
+                ctx.fill(lake, with: .color(Theme.accentSecondary.opacity(0.22)))
+            }
+            var path = Path()
+            path.addLines(pts.map(map))
+            if route.isLoop { path.closeSubpath() }
+            ctx.stroke(path, with: .color(.white.opacity(0.35)), style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round))
+            for seg in route.segments {
+                var sp = Path()
+                var d = seg.startDistance
+                sp.move(to: map(route.sample(at: d).position))
+                while d < seg.endDistance { d += 20; sp.addLine(to: map(route.sample(at: min(d, seg.endDistance)).position)) }
+                ctx.stroke(sp, with: .color(seg.kind == .climb ? Theme.accent : Theme.good), style: StrokeStyle(lineWidth: 3, lineCap: .round))
+            }
+            let start = map(route.sample(at: 0).position)
+            ctx.fill(Path(CGRect(x: start.x - 4, y: start.y - 4, width: 8, height: 8)), with: .color(.white))
+            for f in others {
+                let p = map(route.sample(at: f * route.length).position)
+                ctx.fill(Path(ellipseIn: CGRect(x: p.x - 3.5, y: p.y - 3.5, width: 7, height: 7)), with: .color(.white.opacity(0.85)))
+            }
+            let me = route.sample(at: player * route.length)
+            let p = map(me.position)
+            ctx.fill(Path(ellipseIn: CGRect(x: p.x - 8, y: p.y - 8, width: 16, height: 16)), with: .color(.white))
+            ctx.fill(Path(ellipseIn: CGRect(x: p.x - 6, y: p.y - 6, width: 12, height: 12)), with: .color(Theme.accent))
+            let dir = CGPoint(x: me.heading.x, y: me.heading.y)
+            var arrow = Path()
+            arrow.move(to: CGPoint(x: p.x + dir.x * 14, y: p.y + dir.y * 14))
+            arrow.addLine(to: CGPoint(x: p.x - dir.y * 5, y: p.y + dir.x * 5))
+            arrow.addLine(to: CGPoint(x: p.x + dir.y * 5, y: p.y - dir.x * 5))
+            arrow.closeSubpath()
+            ctx.fill(arrow, with: .color(Theme.accent))
+        }
+        .padding(6)
+        .glass()
+    }
+}

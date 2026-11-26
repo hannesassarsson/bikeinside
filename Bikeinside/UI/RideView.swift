@@ -139,7 +139,8 @@ struct HUDOverlay: View {
                 ElevationStrip(route: controller.engine.route, fraction: hud.routeFraction, others: hud.botRouteFractions, grade: hud.grade, elevation: hud.elevation)
                     .frame(maxWidth: 720)
                     .frame(maxWidth: .infinity)
-                Color.clear.frame(width: 330, height: 1)
+                MiniMap(route: controller.engine.route, player: hud.routeFraction, others: hud.botRouteFractions)
+                    .frame(width: 330, height: 190)
             }
             .padding(18)
 

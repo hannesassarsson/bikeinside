@@ -31,7 +31,7 @@ final class WorldScene {
         var skyMaterial = UnlitMaterial(color: atmosphere.horizonNSColor)
         skyMaterial.faceCulling = .front
         let skyEntity = ModelEntity(mesh: .generateSphere(radius: 1), materials: [skyMaterial])
-        skyEntity.scale = SIMD3(repeating: 4000)
+        skyEntity.scale = SIMD3(repeating: 9000)
         sky = skyEntity
         root.addChild(skyEntity)
 
@@ -67,6 +67,8 @@ final class WorldScene {
         try add(geometry.road, material: materials.ground, shadows: false)
         try add(geometry.arches, material: materials.ground, shadows: true)
         if let w = geometry.water { try add(w, material: materials.water, shadows: false) }
+        try add(geometry.backdrop, material: materials.distant, shadows: false)
+        try add(geometry.furniture, material: materials.ground, shadows: true)
 
         // Sun with shadows that follow the camera.
         sun.light = DirectionalLightComponent(color: atmosphere.sunColor, intensity: atmosphere.sunIntensity)
@@ -74,7 +76,7 @@ final class WorldScene {
         sun.orientation = simd_quatf(from: SIMD3(0, 0, -1), to: simd_normalize(atmosphere.sunDirection))
         root.addChild(sun)
 
-        camera.camera = PerspectiveCameraComponent(near: 0.1, far: 6000, fieldOfViewInDegrees: 62)
+        camera.camera = PerspectiveCameraComponent(near: 0.1, far: 12000, fieldOfViewInDegrees: 62)
         root.addChild(camera)
 
         // Riders

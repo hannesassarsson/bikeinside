@@ -69,6 +69,8 @@ extension Mesh {
 struct WorldMaterials {
     let ground: CustomMaterial
     let water: CustomMaterial
+    /// Same shading with much lighter haze, for the distant mountain ring.
+    let distant: CustomMaterial
 
     init(fogColor: SIMD3<Float>, fogEnd: Float) throws {
         guard let device = MTLCreateSystemDefaultDevice() else { throw RenderError.noMetal }
@@ -80,5 +82,8 @@ struct WorldMaterials {
         var w = try CustomMaterial(surfaceShader: CustomMaterial.SurfaceShader(named: "bikeinsideWater", in: library), lightingModel: .lit)
         w.custom.value = fog
         water = w
+        var d = g
+        d.custom.value = SIMD4<Float>(fogColor.x, fogColor.y, fogColor.z, max(fogEnd * 3.2, 9000))
+        distant = d
     }
 }

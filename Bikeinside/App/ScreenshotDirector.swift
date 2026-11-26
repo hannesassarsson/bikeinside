@@ -96,6 +96,10 @@ final class ScreenshotDirector {
                 c.cameraMode = .drone
                 await wait(2.0)
                 capture("09-cykla-dronare", scene: c)
+                c.cameraMode = .close
+                await wait(2.0)
+                capture("09b-cykla-nara", scene: c)
+                c.cameraMode = .chase
             }
             lastController = c
             if i < tours.count - 1 {
