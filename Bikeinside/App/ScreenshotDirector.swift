@@ -39,6 +39,8 @@ final class ScreenshotDirector {
         model.profile.name = "Hannes"
         model.profile.ftp = 250
         model.profile.weightKg = 75
+        model.settings.multiplayerEnabled = true
+        model.settings.multiplayerRoom = "ci-test"
         await wait(1.5)
         if let w = window {
             w.setContentSize(NSSize(width: 1440, height: 900))

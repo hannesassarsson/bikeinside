@@ -62,11 +62,14 @@ jobs:
         timeout-minutes: 10
         run: |
           mkdir -p shots
+          python3 -m venv /tmp/rt && /tmp/rt/bin/pip install -q websockets || true
+          (/tmp/rt/bin/python scripts/fake_rider.py 420 > fake_rider.log 2>&1 &) || true
           BIKEINSIDE_SCREENSHOTS="$PWD/shots" build/Build/Products/Release/Bikeinside.app/Contents/MacOS/Bikeinside &
           PID=$!
           for i in $(seq 1 480); do kill -0 $PID 2>/dev/null || break; sleep 1; done
           kill $PID 2>/dev/null || true
           ls -la shots
+          cat fake_rider.log || true
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
