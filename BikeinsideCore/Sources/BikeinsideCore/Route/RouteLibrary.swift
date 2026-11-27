@@ -3,10 +3,17 @@ import Foundation
 /// The built-in worlds. Each is an original route through procedurally
 /// generated Swedish landscape.
 public enum RouteLibrary {
-    public static let all: [RouteBlueprint] = [skogsslingan, sjorundan, fjallvagen, skargardsvagen, grusvagen]
+    public static let all: [RouteBlueprint] = [skogsslingan, sjorundan, fjallvagen, skargardsvagen, grusvagen, milrundan]
 
+    /// Suffix marking the reversed version of a route.
+    public static let reversedSuffix = "-rev"
+
+    /// Looks up a route; ids ending in `-rev` give the route ridden the other way.
     public static func blueprint(id: String) -> RouteBlueprint? {
-        all.first { $0.id == id }
+        if id.hasSuffix(reversedSuffix) {
+            return blueprint(id: String(id.dropLast(reversedSuffix.count)))?.reversed()
+        }
+        return all.first { $0.id == id }
     }
 
     // MARK: Skogsslingan – rolling forest loop
@@ -135,4 +142,51 @@ public enum RouteLibrary {
         sprints: [.init(name: "Myrsprinten", startFraction: 0.44, lengthMeters: 300)],
         surface: .gravel
     )
+
+    // MARK: Milrundan – the long one (2.2 mil around a big lake)
+
+    public static let milrundan: RouteBlueprint = {
+        var pts: [Vec2] = []
+        let count = 28
+        for k in 0..<count {
+            let a = Double(k) / Double(count) * 2 * .pi
+            let r = 1.0 + 0.10 * sin(3 * a + 0.7) + 0.06 * cos(5 * a + 1.9) + 0.04 * sin(9 * a)
+            pts.append(Vec2(cos(a) * 4100 * r, sin(a) * 2500 * r))
+        }
+        return RouteBlueprint(
+            id: "milrundan",
+            name: "Milrundan",
+            summary: "Den långa: drygt två mil runt en stor sjö med tre riktiga backar, byar och raksträckor. För långpass och grupplopp.",
+            theme: .lake,
+            seed: 0x31_1A,
+            controlPoints: pts,
+            elevation: [
+                .init(0.00, 22), .init(0.10, 24), .init(0.135, 62), .init(0.15, 68), .init(0.20, 30),
+                .init(0.34, 18), .init(0.45, 24), .init(0.49, 80), .init(0.51, 86), .init(0.58, 40),
+                .init(0.68, 20), .init(0.78, 26), .init(0.815, 60), .init(0.83, 64), .init(0.90, 26),
+            ],
+            climbNames: ["Byabacken", "Åsen", "Kyrkbacken"],
+            sprints: [
+                .init(name: "Bysprinten", startFraction: 0.30, lengthMeters: 400),
+                .init(name: "Strandsprinten", startFraction: 0.72, lengthMeters: 400),
+            ],
+            waterLevel: 6
+        )
+    }()
+}
+
+extension RouteBlueprint {
+    /// The same road ridden in the opposite direction.
+    public func reversed() -> RouteBlueprint {
+        var bp = self
+        bp.id = id + RouteLibrary.reversedSuffix
+        bp.name = name + " baklänges"
+        // keep the same start point, walk the rest backwards
+        bp.controlPoints = [controlPoints[0]] + controlPoints.dropFirst().reversed()
+        // Elevation key at t maps to 1 - t; keep the start point (t = 0) fixed.
+        bp.elevation = elevation.map { ElevationKey($0.t == 0 ? 0 : 1 - $0.t, $0.elevation) }.sorted { $0.t < $1.t }
+        bp.climbNames = climbNames.reversed().map { $0 + " (bakvägen)" }
+        bp.sprints = sprints.map { SprintSpec(name: $0.name, startFraction: max(0, 1 - $0.startFraction - 0.05), lengthMeters: $0.lengthMeters) }
+        return bp
+    }
 }

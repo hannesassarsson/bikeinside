@@ -13,7 +13,7 @@ final class AppModel {
     }
 
     enum Section: String, CaseIterable, Identifiable {
-        case ride, workouts, history, devices, profile
+        case ride, workouts, plan, history, devices, profile
         var id: String { rawValue }
 
         var title: String {
@@ -22,6 +22,7 @@ final class AppModel {
             case .workouts: return "Träningspass"
             case .history: return "Historik"
             case .devices: return "Enheter"
+            case .plan: return "Plan & statistik"
             case .profile: return "Profil & inställningar"
             }
         }
@@ -32,6 +33,7 @@ final class AppModel {
             case .workouts: return "chart.bar.xaxis"
             case .history: return "clock.arrow.circlepath"
             case .devices: return "antenna.radiowaves.left.and.right"
+            case .plan: return "calendar"
             case .profile: return "person.crop.circle"
             }
         }
@@ -52,7 +54,16 @@ final class AppModel {
     private(set) var ghosts: [String: GhostTrack] { didSet { storage.save(ghosts, to: "ghosts.json") } }
     private(set) var progression: Progression { didSet { storage.save(progression, to: "progression.json") } }
 
+    /// Active training plan and when it started.
+    var activePlanId: String? { didSet { UserDefaults.standard.set(activePlanId, forKey: "planId") } }
+    var planStart: Date? { didSet { UserDefaults.standard.set(planStart, forKey: "planStart") } }
+    /// intervals.icu upload status per ride id.
+    var uploadStatus: [UUID: String] = [:]
+    var intervalsKey: String? = IntervalsKeychain.load()
+
     var selectedRouteId: String = RouteLibrary.all[0].id
+    /// Ride the selected route in the opposite direction.
+    var reverseDirection = false
     /// nil = free ride
     var selectedWorkoutId: String?
     var hasCompletedOnboarding: Bool {
@@ -72,6 +83,8 @@ final class AppModel {
         let rides = store.loadRideIndex()
         history = rides
         hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "onboarded")
+        activePlanId = UserDefaults.standard.string(forKey: "planId")
+        planStart = UserDefaults.standard.object(forKey: "planStart") as? Date
         progression = store.load(Progression.self, from: "progression.json")
             ?? Progression.rebuild(from: rides, allRouteIds: RouteLibrary.all.map(\.id))
     }
@@ -99,7 +112,7 @@ final class AppModel {
 
     func startRide() {
         guard !isRiding else { return }
-        let route = route(id: selectedRouteId)
+        let route = route(id: selectedRouteId + (reverseDirection ? RouteLibrary.reversedSuffix : ""))
         profile = profile.sanitized()
         let mode: RideMode = selectedWorkout.map { .workout($0) } ?? .freeRide
         let bots = settings.paceGroup == .none ? [] : BotProfile.group(
@@ -132,6 +145,7 @@ final class AppModel {
         history.insert(record.withoutSamples, at: 0)
         storage.saveRide(record, index: history)
         let update = progression.apply(record, workoutCompleted: workoutCompleted, allRouteIds: RouteLibrary.all.map(\.id))
+        if settings.intervalsAutoUpload, intervalsKey != nil { upload(record) }
         screen = .summary(record, isNew: true, update: update)
     }
 
@@ -169,6 +183,45 @@ final class AppModel {
     func removeImportedWorkout(_ w: Workout) {
         importedWorkouts.removeAll { $0.id == w.id }
         if selectedWorkoutId == w.id { selectedWorkoutId = nil }
+    }
+
+    // MARK: intervals.icu
+
+    func setIntervalsKey(_ key: String?) {
+        let k = key?.trimmingCharacters(in: .whitespacesAndNewlines)
+        IntervalsKeychain.save(k)
+        intervalsKey = (k?.isEmpty ?? true) ? nil : k
+    }
+
+    func upload(_ ride: RideRecord) {
+        guard let key = intervalsKey else { return }
+        uploadStatus[ride.id] = "Laddar upp…"
+        Task {
+            do {
+                try await IntervalsUploader.upload(ride, key: key)
+                uploadStatus[ride.id] = "Uppladdad till intervals.icu ✓"
+            } catch {
+                uploadStatus[ride.id] = "Uppladdning misslyckades: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    // MARK: Plans
+
+    func startPlan(_ id: String?) {
+        activePlanId = id
+        planStart = id == nil ? nil : Date()
+    }
+
+    var activePlan: TrainingPlan? { activePlanId.flatMap(TrainingPlan.plan(id:)) }
+
+    var planSchedule: [TrainingPlan.Scheduled] {
+        guard let plan = activePlan, let start = planStart else { return [] }
+        let done = history.compactMap { r -> (date: Date, workoutId: String)? in
+            guard let name = r.workoutName, let w = allWorkouts.first(where: { $0.name == name }) else { return nil }
+            return (r.startDate, w.id)
+        }
+        return plan.schedule(start: start, completed: done)
     }
 
     // MARK: Totals for the home screen

@@ -27,7 +27,9 @@ public struct WorldGeometry: Sendable {
 public enum WorldBuilder {
     public static func build(route: Route, progress: (@Sendable (Double) -> Void)? = nil) -> WorldGeometry {
         progress?(0.05)
-        let terrain = Terrain.generate(for: route)
+        // Long routes get a coarser grid and sparser forest so memory stays bounded.
+        let long = route.length > 15_000
+        let terrain = Terrain.generate(for: route, cellSize: long ? 11 : 8, margin: long ? 600 : 750)
         progress?(0.4)
         let chunks = terrain.meshChunks()
         progress?(0.55)
@@ -236,9 +238,10 @@ public enum WorldBuilder {
         }
 
         // Trees: dense jittered grid near the road, sparse further out.
-        let bands: [(spacing: Double, minD: Double, maxD: Double, lod: Int)] = [
-            (10.5, 9, 210, 0), (26, 210, 850, 1),
-        ]
+        let long = route.length > 15_000
+        let bands: [(spacing: Double, minD: Double, maxD: Double, lod: Int)] = long
+            ? [(12.5, 9, 150, 0), (34, 150, 650, 1)]
+            : [(10.5, 9, 210, 0), (26, 210, 850, 1)]
         for band in bands {
             var z = terrain.originZ
             while z < terrain.originZ + terrain.depth {

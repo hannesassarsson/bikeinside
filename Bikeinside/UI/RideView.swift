@@ -62,6 +62,7 @@ struct RideView: View {
         case "-": controller.adjustIntensity(-0.05)
         case "n": controller.skipStep()
         case "h", "?": controller.showHelp.toggle()
+        case "j": controller.sendCheer(Cheer.presets[0])
         default: return .ignored
         }
         return .handled
@@ -113,6 +114,9 @@ struct HUDOverlay: View {
                     if let seg = hud.segment {
                         SegmentPanel(segment: seg.segment, progress: seg.progress, seconds: seg.seconds, route: controller.engine.route)
                     }
+                    if controller.racePhase != .idle {
+                        RacePanel(controller: controller)
+                    }
                     if let gap = hud.ghostGap {
                         GhostPanel(gap: gap, lapSeconds: hud.ghostLapSeconds)
                     }
@@ -126,6 +130,9 @@ struct HUDOverlay: View {
 
                 VStack(alignment: .trailing, spacing: 12) {
                     TopRightControls(controller: controller)
+                    if let mp = controller.multiplayer, mp.status == .online {
+                        OnlineBar(controller: controller)
+                    }
                     if hud.leaderboard.count > 1 {
                         RidersPanel(rows: hud.leaderboard)
                     }
@@ -385,6 +392,81 @@ struct ComplianceBar: View {
     }
 }
 
+/// Cheers and race start for riders in the same room.
+struct OnlineBar: View {
+    let controller: RideController
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(Cheer.presets, id: \.self) { text in
+                Button(String(text.prefix(2))) { controller.sendCheer(text) }
+                    .help(text)
+            }
+            Menu {
+                ForEach([2000.0, 5000, 10000, 20000], id: \.self) { d in
+                    Button("\(Format.km(d, decimals: 0)) km") { controller.startRace(distance: d) }
+                }
+            } label: {
+                Label("Lopp", systemImage: "flag.checkered")
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Starta ett lopp för alla i rummet (start om 15 s)")
+        }
+        .buttonStyle(SecondaryButtonStyle())
+    }
+}
+
+struct RacePanel: View {
+    let controller: RideController
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "flag.checkered").foregroundStyle(Theme.warn)
+                Text("Lopp \(Format.km(controller.raceInfo?.distance ?? 0)) km").font(.system(size: 13, weight: .bold))
+                Spacer()
+                Button { controller.dismissRace() } label: { Image(systemName: "xmark") }
+                    .buttonStyle(.borderless)
+                    .help("Lämna loppet")
+            }
+            switch controller.racePhase {
+            case .idle:
+                EmptyView()
+            case .countdown(let n):
+                Text("Start om \(n)")
+                    .font(.system(size: 34, weight: .heavy, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(n <= 3 ? Theme.warn : .white)
+            case .racing(let progress, let elapsed):
+                HStack(alignment: .firstTextBaseline) {
+                    Text(Format.duration(elapsed)).font(.system(size: 26, weight: .heavy, design: .rounded)).monospacedDigit()
+                    Spacer()
+                    if let r = controller.raceRemaining {
+                        Text("\(Int(r.rounded())) m kvar").font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.textSecondary)
+                    }
+                }
+                ProgressView(value: progress).tint(Theme.warn)
+            case .finished(let secs, let place):
+                Text("I mål: \(Format.duration(secs)) · plats \(place)")
+                    .font(.system(size: 18, weight: .heavy, design: .rounded))
+                    .foregroundStyle(Theme.good)
+            }
+            if !controller.raceResults.isEmpty {
+                ForEach(Array(controller.raceResults.enumerated()), id: \.offset) { i, r in
+                    HStack {
+                        Text("\(i + 1). \(r.name)").font(.system(size: 12, weight: .semibold))
+                        Spacer()
+                        Text(Format.duration(r.seconds)).font(.system(size: 12, weight: .bold, design: .rounded)).monospacedDigit()
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .glass()
+    }
+}
+
 struct GhostPanel: View {
     let gap: Double
     let lapSeconds: Double?
@@ -617,7 +699,7 @@ struct HelpPanel: View {
         let keys: [(String, String)] = [
             ("↑ / ↓", "Simulerad effekt ±10 W (shift ±50)"), ("Mellanslag", "Pausa / fortsätt"),
             ("C, 1–5", "Kameravinklar"), ("E", "ERG på/av"), ("+ / −", "Passintensitet ±5 %"),
-            ("N", "Hoppa till nästa steg"), ("Esc", "Avsluta åkningen"), ("H", "Visa/dölj hjälp"),
+            ("N", "Hoppa till nästa steg"), ("J", "Skicka \"Heja!\" (online)"), ("Esc", "Avsluta åkningen"), ("H", "Visa/dölj hjälp"),
         ]
         LazyVGrid(columns: [GridItem(.fixed(110), alignment: .trailing), GridItem(.flexible(), alignment: .leading)], spacing: 6) {
             ForEach(keys.indices, id: \.self) { i in

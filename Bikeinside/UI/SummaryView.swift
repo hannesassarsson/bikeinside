@@ -35,6 +35,21 @@ struct SummaryView: View {
                         .keyboardShortcut(.defaultAction)
                 }
 
+                if model.intervalsKey != nil {
+                    HStack(spacing: 10) {
+                        Button {
+                            model.upload(record)
+                        } label: {
+                            Label("Ladda upp till intervals.icu", systemImage: "icloud.and.arrow.up")
+                        }
+                        .buttonStyle(SecondaryButtonStyle())
+                        .disabled(model.uploadStatus[record.id] == "Laddar upp…")
+                        if let st = model.uploadStatus[record.id] {
+                            Text(st).font(.system(size: 12)).foregroundStyle(st.hasSuffix("✓") ? Theme.good : Theme.textSecondary)
+                        }
+                    }
+                }
+
                 if let u = update {
                     ProgressionCard(update: u)
                 }

@@ -21,6 +21,8 @@ struct AppSettings: Codable, Equatable {
     var soundEffects: Bool = true
     /// Race your fastest previous lap on the route.
     var ghostEnabled: Bool = true
+    var weather: WeatherChoice = .auto
+    var intervalsAutoUpload: Bool = false
 
     init() {}
 
@@ -41,6 +43,50 @@ struct AppSettings: Codable, Equatable {
         voiceCoach = try c.decodeIfPresent(Bool.self, forKey: .voiceCoach) ?? d.voiceCoach
         soundEffects = try c.decodeIfPresent(Bool.self, forKey: .soundEffects) ?? d.soundEffects
         ghostEnabled = try c.decodeIfPresent(Bool.self, forKey: .ghostEnabled) ?? d.ghostEnabled
+        weather = try c.decodeIfPresent(WeatherChoice.self, forKey: .weather) ?? d.weather
+        intervalsAutoUpload = try c.decodeIfPresent(Bool.self, forKey: .intervalsAutoUpload) ?? d.intervalsAutoUpload
+    }
+}
+
+/// Time of day and weather for the ride.
+enum WeatherChoice: String, Codable, CaseIterable, Identifiable {
+    case auto, day, sunset, evening, overcast, rain, fog
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .auto: return "Efter klockan"
+        case .day: return "Sol"
+        case .sunset: return "Solnedgång"
+        case .evening: return "Kväll"
+        case .overcast: return "Mulet"
+        case .rain: return "Regn"
+        case .fog: return "Dimma"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .auto: return "clock"
+        case .day: return "sun.max.fill"
+        case .sunset: return "sunset.fill"
+        case .evening: return "moon.stars.fill"
+        case .overcast: return "cloud.fill"
+        case .rain: return "cloud.rain.fill"
+        case .fog: return "cloud.fog.fill"
+        }
+    }
+
+    /// Resolves `.auto` from the local time.
+    func resolved(now: Date = Date()) -> WeatherChoice {
+        guard self == .auto else { return self }
+        let h = Calendar.current.component(.hour, from: now)
+        switch h {
+        case 7..<17: return .day
+        case 17..<20: return .sunset
+        default: return .evening
+        }
     }
 }
 

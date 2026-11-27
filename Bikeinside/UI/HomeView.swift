@@ -42,6 +42,7 @@ struct HomeView: View {
                     case .workouts: WorkoutsView()
                     case .history: HistoryView()
                     case .devices: DevicesView()
+                    case .plan: PlanStatsView()
                     case .profile: ProfileView()
                     }
                 }
@@ -100,7 +101,19 @@ struct StartRideView: View {
         VStack(alignment: .leading, spacing: 26) {
             header
 
-            SectionTitle("Välj värld")
+            HStack {
+                SectionTitle("Välj värld")
+                Spacer()
+                Toggle("Kör baklänges", isOn: $model.reverseDirection)
+                    .toggleStyle(.switch)
+                    .font(.system(size: 13, weight: .semibold))
+                Picker("Väder", selection: $model.settings.weather) {
+                    ForEach(WeatherChoice.allCases) { w in
+                        Label(w.title, systemImage: w.symbol).tag(w)
+                    }
+                }
+                .frame(width: 220)
+            }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 250), spacing: 16)], spacing: 16) {
                 ForEach(RouteLibrary.all, id: \.id) { bp in
                     RouteCard(route: model.route(id: bp.id), selected: model.selectedRouteId == bp.id)

@@ -58,3 +58,21 @@ import Testing
         #expect(gain > 200)
     }
 }
+
+@Suite struct ReverseRouteTests {
+    @Test func reversedRouteHasSameLengthStartAndMirroredProfile() throws {
+        let fwd = RouteBuilder.build(try #require(RouteLibrary.blueprint(id: "fjallvagen")))
+        let rev = RouteBuilder.build(try #require(RouteLibrary.blueprint(id: "fjallvagen-rev")))
+        #expect(rev.id == "fjallvagen-rev" && rev.name.hasSuffix("baklänges"))
+        #expect(abs(rev.length - fwd.length) / fwd.length < 0.002)
+        #expect((rev.points[0].xz - fwd.points[0].xz).length < 1)
+        // heading at the start is (roughly) opposite
+        #expect(rev.headings[0].dot(fwd.headings[0]) < -0.9)
+        // elevation at d on the reversed route equals elevation at L-d forwards
+        for d in stride(from: 500.0, to: fwd.length - 500, by: 900) {
+            #expect(abs(rev.sample(at: d).elevation - fwd.sample(at: fwd.length - d).elevation) < 6)
+        }
+        // the big climb becomes a descent: reversed route has its climb elsewhere
+        #expect(rev.segments.contains { $0.kind == .climb })
+    }
+}

@@ -51,6 +51,9 @@ final class MultiplayerClient: NSObject {
     @ObservationIgnored private var reconnectDelay: Double = 1
     @ObservationIgnored private var stopped = false
     @ObservationIgnored private var lastSent: Double = 0
+    @ObservationIgnored var onCheer: ((Cheer) -> Void)?
+    @ObservationIgnored var onRace: ((RaceAnnouncement) -> Void)?
+    @ObservationIgnored var onFinish: ((RaceFinish) -> Void)?
 
     init(routeId: String, room: String) {
         topic = RealtimeProtocol.topic(routeId: routeId, room: room)
@@ -90,6 +93,21 @@ final class MultiplayerClient: NSObject {
         guard status == .online, now - lastSent >= 0.5 else { return }
         lastSent = now
         send(RealtimeProtocol.broadcast(topic: topic, state: state, ref: nextRef()))
+    }
+
+    func sendCheer(_ text: String, name: String) {
+        guard status == .online else { return }
+        send(RealtimeProtocol.broadcast(topic: topic, event: "cheer", value: Cheer(from: id, name: name, text: text), ref: nextRef()))
+    }
+
+    func sendRace(_ race: RaceAnnouncement) {
+        guard status == .online else { return }
+        send(RealtimeProtocol.broadcast(topic: topic, event: "race", value: race, ref: nextRef()))
+    }
+
+    func sendFinish(_ f: RaceFinish) {
+        guard status == .online else { return }
+        send(RealtimeProtocol.broadcast(topic: topic, event: "finish", value: f, ref: nextRef()))
     }
 
     // MARK: Connection
@@ -150,6 +168,12 @@ final class MultiplayerClient: NSObject {
             if s.id != id { store.update(s, now: now) }
         case .left(let leftId):
             store.remove(id: leftId)
+        case .cheer(let c):
+            if c.from != id { onCheer?(c) }
+        case .race(let r):
+            onRace?(r)
+        case .finish(let f):
+            if f.id != id { onFinish?(f) }
         case .other:
             break
         }

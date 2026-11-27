@@ -74,9 +74,17 @@ final class RideController {
     @ObservationIgnored private var hudAccumulator = 0.0
     @ObservationIgnored private var trainerAccumulator = 0.0
     @ObservationIgnored private let showNames: Bool
+    @ObservationIgnored private let weather: WeatherChoice
     /// Live multiplayer (nil when disabled in settings).
     let multiplayer: MultiplayerClient?
     @ObservationIgnored let coach: CoachAudio
+    @ObservationIgnored private var race = RaceTracker()
+    @ObservationIgnored private var lastCountdownSpoken: Int?
+    /// Group race shown in the HUD.
+    private(set) var racePhase: RaceTracker.Phase = .idle
+    private(set) var raceResults: [RaceFinish] = []
+    private(set) var raceRemaining: Double?
+    private(set) var raceInfo: RaceAnnouncement?
 
     var usesVirtualPower: Bool { bluetooth.powerSource() == nil }
 
@@ -89,11 +97,23 @@ final class RideController {
         ergEnabled = config.ergEnabled
         trainerDifficulty = config.trainerDifficulty
         showNames = settings.showRiderNames
+        weather = settings.weather
         multiplayer = settings.multiplayerEnabled
             ? MultiplayerClient(routeId: config.route.id, room: settings.multiplayerRoom) : nil
         virtualPower = (config.rider.ftp * 0.65).rounded()
         coach = CoachAudio(voice: settings.voiceCoach, sounds: settings.soundEffects)
         multiplayer?.start()
+        multiplayer?.onCheer = { [weak self] c in
+            guard let self else { return }
+            self.push(Banner(symbol: "hand.thumbsup.fill", title: "\(c.name): \(c.text)", subtitle: "Online", color: Theme.accentSecondary))
+            self.coach.play("Pop")
+        }
+        multiplayer?.onRace = { [weak self] r in self?.acceptRace(r) }
+        multiplayer?.onFinish = { [weak self] f in
+            guard let self else { return }
+            self.race.record(f)
+            self.push(Banner(symbol: "flag.checkered", title: "\(f.name) i mål", subtitle: Format.duration(f.seconds), color: .white))
+        }
         Task { await load() }
     }
 
@@ -108,7 +128,7 @@ final class RideController {
         let rider = engine.config.rider
         let bots = engine.config.bots
         do {
-            world = try WorldScene(route: route, geometry: geometry, rider: rider, bots: bots, showNames: showNames)
+            world = try WorldScene(route: route, geometry: geometry, rider: rider, bots: bots, showNames: showNames, weather: weather)
         } catch {
             loadError = "Kunde inte bygga 3D-världen: \(error.localizedDescription)"
             return
@@ -144,6 +164,7 @@ final class RideController {
             engine.setRemoteRiders(mp.riders(routeId: engine.route.id))
             if !isPaused { mp.publish(engine.broadcastState(id: mp.id)) }
         }
+        updateRace()
 
         trainerAccumulator += dt
         if trainerAccumulator >= 0.1 {
@@ -227,9 +248,61 @@ final class RideController {
         }
     }
 
-    private func push(_ b: Banner) {
+    func push(_ b: Banner) {
         banners.append(b)
         if banners.count > 3 { banners.removeFirst() }
+    }
+
+    // MARK: Group race
+
+    private func acceptRace(_ r: RaceAnnouncement) {
+        guard race.announce(r, routeId: engine.route.id, myId: multiplayer?.id ?? "me") else { return }
+        raceInfo = r
+        lastCountdownSpoken = nil
+        push(Banner(symbol: "flag.checkered", title: "Lopp: \(Format.km(r.distance)) km",
+                    subtitle: "\(r.starterName) startade ett lopp – start om \(Int(r.startAt - Date().timeIntervalSince1970)) s", color: Theme.warn))
+        coach.say("\(r.starterName) har startat ett lopp på \(Format.km(r.distance)) kilometer.", priority: true)
+    }
+
+    /// Start a race for everyone in the room (and yourself) with a 15 s countdown.
+    func startRace(distance: Double) {
+        let r = RaceAnnouncement(raceId: UUID().uuidString, routeId: engine.route.id,
+                                 startAt: Date().timeIntervalSince1970 + 15, distance: distance,
+                                 starterName: engine.config.rider.name)
+        multiplayer?.sendRace(r)
+        acceptRace(r)
+    }
+
+    func sendCheer(_ text: String) {
+        multiplayer?.sendCheer(text, name: engine.config.rider.name)
+        push(Banner(symbol: "paperplane.fill", title: "Du: \(text)", subtitle: "Skickat till alla i rummet", color: Theme.accentSecondary))
+    }
+
+    func dismissRace() {
+        race.clear()
+        raceInfo = nil
+        racePhase = .idle
+        raceResults = []
+    }
+
+    private func updateRace() {
+        guard raceInfo != nil else { return }
+        let now = Date().timeIntervalSince1970
+        if let mine = race.update(now: now, distance: engine.distance, myName: engine.config.rider.name) {
+            multiplayer?.sendFinish(mine)
+            coach.play("Hero")
+            coach.say("I mål! \(CoachAudio.spokenDuration(mine.seconds)).", priority: true)
+        }
+        let phase = race.phase(now: now, distance: engine.distance)
+        if case .countdown(let n) = phase, n != lastCountdownSpoken, n <= 10 {
+            lastCountdownSpoken = n
+            if n <= 5 { coach.play("Tink") }
+            if n == 10 || n <= 3 { coach.say("\(n)", priority: true) }
+        }
+        if case .racing = phase, case .countdown = racePhase { coach.say("Kör!", priority: true) }
+        racePhase = phase
+        raceResults = race.results
+        raceRemaining = race.remaining(distance: engine.distance)
     }
 
     // MARK: Controls

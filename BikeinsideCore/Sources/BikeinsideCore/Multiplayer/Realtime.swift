@@ -84,11 +84,16 @@ public enum RealtimeProtocol {
     }
 
     public static func broadcast(topic: String, state: RemoteRiderState, ref: Int) -> String {
-        let data = (try? JSONEncoder().encode(state)) ?? Data("{}".utf8)
+        broadcast(topic: topic, event: "state", value: state, ref: ref)
+    }
+
+    /// Any Codable payload under a named broadcast event ("state", "cheer", "race", "finish").
+    public static func broadcast<T: Encodable>(topic: String, event: String, value: T, ref: Int) -> String {
+        let data = (try? JSONEncoder().encode(value)) ?? Data("{}".utf8)
         let inner = (try? JSONSerialization.jsonObject(with: data)) ?? [String: Any]()
         return json([
             "topic": topic, "event": "broadcast", "ref": String(ref),
-            "payload": ["type": "broadcast", "event": "state", "payload": inner],
+            "payload": ["type": "broadcast", "event": event, "payload": inner],
         ])
     }
 
@@ -96,6 +101,9 @@ public enum RealtimeProtocol {
         case joined
         case joinFailed(String)
         case state(RemoteRiderState)
+        case cheer(Cheer)
+        case race(RaceAnnouncement)
+        case finish(RaceFinish)
         case left(id: String)
         case other
     }
@@ -112,11 +120,25 @@ public enum RealtimeProtocol {
             if (payload["status"] as? String) == "ok" { return .joined }
             return .joinFailed(String(describing: payload["response"] ?? "okänt fel"))
         case "broadcast":
-            guard (payload["event"] as? String) == "state", let inner = payload["payload"],
-                  let innerData = try? JSONSerialization.data(withJSONObject: inner),
-                  let state = try? JSONDecoder().decode(RemoteRiderState.self, from: innerData),
-                  let clean = state.sanitized() else { return .other }
-            return .state(clean)
+            guard let kind = payload["event"] as? String, let inner = payload["payload"],
+                  let innerData = try? JSONSerialization.data(withJSONObject: inner) else { return .other }
+            let dec = JSONDecoder()
+            switch kind {
+            case "state":
+                guard let s = try? dec.decode(RemoteRiderState.self, from: innerData), let clean = s.sanitized() else { return .other }
+                return .state(clean)
+            case "cheer":
+                guard let c = try? dec.decode(Cheer.self, from: innerData), let clean = c.sanitized() else { return .other }
+                return .cheer(clean)
+            case "race":
+                guard let r = try? dec.decode(RaceAnnouncement.self, from: innerData), r.isValid else { return .other }
+                return .race(r)
+            case "finish":
+                guard let f = try? dec.decode(RaceFinish.self, from: innerData) else { return .other }
+                return .finish(f)
+            default:
+                return .other
+            }
         case "presence_diff":
             if let leaves = payload["leaves"] as? [String: Any], let id = leaves.keys.first { return .left(id: id) }
             return .other

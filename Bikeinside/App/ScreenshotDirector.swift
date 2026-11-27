@@ -59,18 +59,20 @@ final class ScreenshotDirector {
 
         // Rides in each world
         model.settings.paceGroup = .tempo
-        let tours: [(route: String, workout: String?, camera: CameraMode, untilClimb: Bool)] = [
-            ("skogsslingan", nil, .chase, false),
-            ("sjorundan", WorkoutLibrary.sweetSpot3x10.id, .close, false),
-            ("fjallvagen", nil, .chase, true),
-            ("skargardsvagen", nil, .chase, false),
-            ("grusvagen", nil, .chase, false),
+        let tours: [(route: String, workout: String?, camera: CameraMode, untilClimb: Bool, weather: WeatherChoice)] = [
+            ("skogsslingan", nil, .chase, false, .day),
+            ("sjorundan", WorkoutLibrary.sweetSpot3x10.id, .close, false, .sunset),
+            ("fjallvagen", nil, .chase, true, .day),
+            ("skargardsvagen", nil, .chase, false, .rain),
+            ("grusvagen", nil, .chase, false, .evening),
+            ("milrundan", nil, .chase, false, .fog),
         ]
         var lastController: RideController?
         for (i, tour) in tours.enumerated() {
             model.selectedRouteId = tour.route
             model.selectedWorkoutId = tour.workout
             model.settings.cameraMode = tour.camera
+            model.settings.weather = tour.weather
             model.startRide()
             guard case .ride(let c) = model.screen else { continue }
             var waited = 0.0
@@ -91,8 +93,12 @@ final class ScreenshotDirector {
                    c.engine.activeSegment!.progress > 0.75 { break }
                 if !tour.untilClimb, Double(steps) * 0.1 >= target { break }
             }
+            if tour.route == "milrundan" {
+                c.startRace(distance: 5000)
+                c.sendCheer(Cheer.presets[0])
+            }
             await wait(2.5) // let real frames render and HUD/camera settle
-            capture("0\(5 + i)-cykla-\(tour.route)", scene: c)
+            capture("0\(5 + i)-cykla-\(tour.route)-\(tour.weather.rawValue)", scene: c)
             if i == 0 {
                 c.cameraMode = .side
                 await wait(1.5)
@@ -121,6 +127,10 @@ final class ScreenshotDirector {
             model.closeSummary()
             await wait(1.2)
             capture("11-historik")
+            model.startPlan(TrainingPlan.getStarted.id)
+            model.section = .plan
+            await wait(1.5)
+            capture("12-plan-statistik")
         }
         log("done")
         NSApp.terminate(nil)

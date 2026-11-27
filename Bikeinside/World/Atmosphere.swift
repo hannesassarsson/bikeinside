@@ -42,6 +42,57 @@ struct Atmosphere {
 
     var horizonNSColor: NSColor { NSColor(calibratedRed: horizon.x, green: horizon.y, blue: horizon.z, alpha: 1) }
 
+    /// Rain particles around the camera.
+    var rain = false
+
+    /// Applies time of day / weather on top of the theme's base look.
+    func with(_ w: WeatherChoice) -> Atmosphere {
+        var a = self
+        switch w.resolved() {
+        case .auto, .day:
+            break
+        case .sunset:
+            a.zenith = SIMD3(0.20, 0.26, 0.52)
+            a.horizon = SIMD3(0.98, 0.62, 0.38)
+            a.sunDirection = SIMD3(0.75, -0.16, -0.64)
+            a.sunColor = NSColor(calibratedRed: 1, green: 0.62, blue: 0.36, alpha: 1)
+            a.sunIntensity *= 0.55
+            a.ambientExponent = 0.6
+            a.cloudiness = 0.4
+        case .evening:
+            a.zenith = SIMD3(0.04, 0.07, 0.18)
+            a.horizon = SIMD3(0.28, 0.30, 0.46)
+            a.sunDirection = SIMD3(-0.4, -0.5, 0.75) // moonlight
+            a.sunColor = NSColor(calibratedRed: 0.62, green: 0.72, blue: 1.0, alpha: 1)
+            a.sunIntensity *= 0.12
+            a.ambientExponent = -1.2
+            a.cloudiness = 0.15
+        case .overcast:
+            a.zenith = SIMD3(0.52, 0.56, 0.62)
+            a.horizon = SIMD3(0.72, 0.74, 0.77)
+            a.sunIntensity *= 0.35
+            a.ambientExponent = 0.6
+            a.cloudiness = 0.95
+            a.fogEnd *= 0.8
+        case .rain:
+            a.zenith = SIMD3(0.36, 0.40, 0.46)
+            a.horizon = SIMD3(0.56, 0.59, 0.63)
+            a.sunIntensity *= 0.22
+            a.ambientExponent = 0.3
+            a.cloudiness = 1.0
+            a.fogEnd *= 0.5
+            a.rain = true
+        case .fog:
+            a.zenith = SIMD3(0.70, 0.73, 0.76)
+            a.horizon = SIMD3(0.80, 0.82, 0.84)
+            a.sunIntensity *= 0.45
+            a.ambientExponent = 0.7
+            a.cloudiness = 0.6
+            a.fogEnd = 420
+        }
+        return a
+    }
+
     /// Horizon colour in linear space (for the fog shader).
     var fogLinear: SIMD3<Float> {
         SIMD3(Float(pow(horizon.x, 2.2)), Float(pow(horizon.y, 2.2)), Float(pow(horizon.z, 2.2)))

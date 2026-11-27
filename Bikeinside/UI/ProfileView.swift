@@ -98,6 +98,7 @@ struct ProfileView: View {
                     }
                 }
             }
+            IntervalsCard()
             AchievementsGrid(progression: model.progression)
         }
     }
@@ -183,6 +184,38 @@ struct AchievementsGrid: View {
                     StatTile(title: "Höjdmeter", value: "\(Int(progression.totalAscent))", unit: "m")
                     StatTile(title: "Pass", value: "\(progression.workouts)")
                     StatTile(title: "Nivå", value: "\(progression.level)", unit: "\(progression.xp) XP")
+                }
+            }
+        }
+    }
+}
+
+/// Free alternative to Strava's API: intervals.icu, which forwards to Garmin etc.
+struct IntervalsCard: View {
+    @Environment(AppModel.self) private var model
+    @State private var keyInput = ""
+
+    var body: some View {
+        @Bindable var model = model
+        Card {
+            VStack(alignment: .leading, spacing: 10) {
+                SectionTitle("intervals.icu (gratis)")
+                Text("Skapa ett gratis konto på intervals.icu, gå till Settings → Developer Settings och kopiera din API-nyckel. Nyckeln sparas i macOS-nyckelringen.")
+                    .font(.system(size: 12)).foregroundStyle(Theme.textSecondary)
+                if model.intervalsKey == nil {
+                    HStack {
+                        SecureField("API-nyckel", text: $keyInput).textFieldStyle(.roundedBorder).frame(width: 320)
+                        Button("Spara") { model.setIntervalsKey(keyInput); keyInput = "" }
+                            .buttonStyle(SecondaryButtonStyle())
+                            .disabled(keyInput.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                } else {
+                    HStack {
+                        Label("Kopplad", systemImage: "checkmark.circle.fill").foregroundStyle(Theme.good)
+                        Spacer()
+                        Button("Ta bort nyckel") { model.setIntervalsKey(nil) }.buttonStyle(SecondaryButtonStyle())
+                    }
+                    Toggle("Ladda upp automatiskt efter varje åkning", isOn: $model.settings.intervalsAutoUpload)
                 }
             }
         }

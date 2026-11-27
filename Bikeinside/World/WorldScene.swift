@@ -18,6 +18,7 @@ final class WorldScene {
     private var riderMaterial: CustomMaterial?
     private var iblEntity: Entity?
     private var ghost: RiderEntity?
+    private var rainEntity: Entity?
     private let route: Route
     private let terrain: Terrain
     private let atmosphere: Atmosphere
@@ -26,10 +27,11 @@ final class WorldScene {
     private var camTarget = SIMD3<Float>(0, 1, 0)
     private var hasCamera = false
 
-    init(route: Route, geometry: WorldGeometry, rider: RiderProfile, bots botProfiles: [BotProfile], showNames: Bool) throws {
+    init(route: Route, geometry: WorldGeometry, rider: RiderProfile, bots botProfiles: [BotProfile], showNames: Bool,
+         weather: WeatherChoice = .day) throws {
         self.route = route
         terrain = geometry.terrain
-        atmosphere = Atmosphere.forTheme(route.theme)
+        atmosphere = Atmosphere.forTheme(route.theme).with(weather)
         let materials = try WorldMaterials(fogColor: atmosphere.fogLinear, fogEnd: atmosphere.fogEnd)
 
         // Sky dome (unlit, follows the camera) + image-based ambient light from the same sky.
@@ -108,6 +110,25 @@ final class WorldScene {
         sharedMeshes = shared
         riderMaterial = materials.ground
         iblEntity = ibl
+
+        if atmosphere.rain {
+            // Streaks of rain in a box that follows the camera.
+            var p = ParticleEmitterComponent()
+            p.emitterShape = .box
+            p.emitterShapeSize = SIMD3(40, 1, 40)
+            p.birthLocation = .volume
+            p.emissionDirection = SIMD3(0.05, -1, 0)
+            p.speed = 14
+            p.mainEmitter.birthRate = 9000
+            p.mainEmitter.lifeSpan = 1.3
+            p.mainEmitter.size = 0.012
+            p.mainEmitter.stretchFactor = 14
+            p.mainEmitter.color = .constant(.single(NSColor(calibratedWhite: 0.85, alpha: 0.45)))
+            let e = Entity()
+            e.components.set(p)
+            root.addChild(e)
+            rainEntity = e
+        }
     }
 
     private func applyLighting(_ e: Entity) {
@@ -192,6 +213,7 @@ final class WorldScene {
         updateCamera(rider: me.position, heading: me.heading, grade: me.grade, mode: cameraMode, dt: dt)
         player.isHidden = cameraMode == .firstPerson
         sky.position = camPos
+        rainEntity?.position = camPos + SIMD3(0, 9, 0)
     }
 
     private func updateCamera(rider p: SIMD3<Float>, heading h: SIMD2<Float>, grade: Float, mode: CameraMode, dt: Double) {
