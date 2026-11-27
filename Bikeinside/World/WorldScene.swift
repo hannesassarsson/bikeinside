@@ -12,6 +12,11 @@ final class WorldScene {
     private let sky: ModelEntity
     private let player: RiderEntity
     private var bots: [String: RiderEntity] = [:]
+    /// Real people riding online, created on demand.
+    private var remotes: [String: RiderEntity] = [:]
+    private var sharedMeshes: RiderEntity.SharedMeshes?
+    private var riderMaterial: CustomMaterial?
+    private var iblEntity: Entity?
     private let route: Route
     private let terrain: Terrain
     private let atmosphere: Atmosphere
@@ -99,6 +104,41 @@ final class WorldScene {
             for child in e.children { child.components.set(ImageBasedLightReceiverComponent(imageBasedLight: ibl)) }
             for child in e.children.flatMap(\.children) { child.components.set(ImageBasedLightReceiverComponent(imageBasedLight: ibl)) }
         }
+        sharedMeshes = shared
+        riderMaterial = materials.ground
+        iblEntity = ibl
+    }
+
+    private func applyLighting(_ e: Entity) {
+        guard let ibl = iblEntity else { return }
+        e.components.set(ImageBasedLightReceiverComponent(imageBasedLight: ibl))
+        for c in e.children {
+            c.components.set(ImageBasedLightReceiverComponent(imageBasedLight: ibl))
+            for cc in c.children { cc.components.set(ImageBasedLightReceiverComponent(imageBasedLight: ibl)) }
+        }
+    }
+
+    private func updateRemotes(_ riders: [RideEngine.Remote], dt: Double) {
+        let ids = Set(riders.map(\.state.id))
+        for (id, entity) in remotes where !ids.contains(id) {
+            entity.root.removeFromParent()
+            remotes[id] = nil
+        }
+        for r in riders {
+            var avatar = remotes[r.state.id]
+            if avatar == nil, let shared = sharedMeshes, let mat = riderMaterial,
+               let made = try? RiderEntity(jersey: RiderProfile.jerseyPalette[r.state.jersey], heightCm: r.state.heightCm,
+                                           name: r.state.name, shared: shared, material: mat) {
+                root.addChild(made.root)
+                applyLighting(made.root)
+                remotes[r.state.id] = made
+                avatar = made
+            }
+            guard let avatar else { continue }
+            let pose = roadPose(distance: r.effectiveDistance, lateral: r.lateral)
+            avatar.place(at: pose.position, heading: pose.heading, grade: pose.grade)
+            avatar.animate(dt: dt, speed: r.state.speed, cadence: r.state.cadence ?? 85, power: r.state.power)
+        }
     }
 
     private func roadPose(distance: Double, lateral: Double) -> (position: SIMD3<Float>, heading: SIMD2<Float>, grade: Float) {
@@ -122,6 +162,8 @@ final class WorldScene {
             avatar.place(at: pose.position, heading: pose.heading, grade: pose.grade)
             avatar.animate(dt: dt, speed: b.speed, cadence: 88, power: b.power)
         }
+
+        updateRemotes(engine.remoteRiders, dt: dt)
 
         updateCamera(rider: me.position, heading: me.heading, grade: me.grade, mode: cameraMode, dt: dt)
         player.isHidden = cameraMode == .firstPerson

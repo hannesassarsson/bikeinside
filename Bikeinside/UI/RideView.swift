@@ -416,7 +416,7 @@ struct SegmentPanel: View {
 }
 
 struct RidersPanel: View {
-    let rows: [(name: String, gapMeters: Double, gapSeconds: Double, wattsPerKg: Double, isPlayer: Bool)]
+    let rows: [RideEngine.LeaderboardRow]
 
     var body: some View {
         // show the riders closest to the player
@@ -430,9 +430,15 @@ struct RidersPanel: View {
             ForEach(lo..<hi, id: \.self) { i in
                 let r = rows[i]
                 HStack(spacing: 8) {
+                    if r.isRemote {
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(Theme.accentSecondary)
+                            .help("Cyklar online")
+                    }
                     Text(r.name)
                         .font(.system(size: 13, weight: r.isPlayer ? .heavy : .semibold))
-                        .foregroundStyle(r.isPlayer ? Theme.accent : .white)
+                        .foregroundStyle(r.isPlayer ? Theme.accent : (r.isRemote ? Theme.accentSecondary : .white))
                         .lineLimit(1)
                     Spacer()
                     Text(Format.number(r.wattsPerKg, decimals: 1))
@@ -490,6 +496,13 @@ struct StatusPanel: View {
                 if let err = controller.bluetooth.trainerControlError {
                     Text(err).font(.system(size: 11)).foregroundStyle(Theme.warn)
                 }
+            }
+            if let mp = controller.multiplayer {
+                let others = hud.leaderboard.filter(\.isRemote).count
+                Label(mp.status == .online ? "Online – \(others) till på rutten" : mp.status.label,
+                      systemImage: mp.status == .online ? "person.2.fill" : "wifi.exclamationmark")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(mp.status == .online ? Theme.accentSecondary : Theme.warn)
             }
             HStack(spacing: 14) {
                 Label("+\(Int(hud.ascent.rounded())) m", systemImage: "arrow.up.right")

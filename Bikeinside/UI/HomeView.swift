@@ -161,6 +161,19 @@ struct StartRideView: View {
                                  : "Sex datorstyrda cyklister. Lägg dig bakom en rygg så sparar du ~30 % luftmotstånd.")
                                 .font(.system(size: 12)).foregroundStyle(Theme.textSecondary)
                             Divider().opacity(0.3)
+                            Toggle("Cykla online med andra", isOn: $model.settings.multiplayerEnabled)
+                                .font(.system(size: 13, weight: .semibold))
+                            if model.settings.multiplayerEnabled {
+                                HStack {
+                                    Text("Rumskod").font(.system(size: 12))
+                                    TextField("alla", text: $model.settings.multiplayerRoom)
+                                        .textFieldStyle(.roundedBorder)
+                                        .frame(width: 140)
+                                    Text("Samma kod + samma värld = ni ser varandra")
+                                        .font(.system(size: 11)).foregroundStyle(Theme.textSecondary)
+                                }
+                            }
+                            Divider().opacity(0.3)
                             HStack {
                                 Text("Trainerkänsla").font(.system(size: 13, weight: .semibold))
                                 Slider(value: $model.settings.trainerDifficulty, in: 0...1, step: 0.05)

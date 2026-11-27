@@ -13,6 +13,10 @@ struct AppSettings: Codable, Equatable {
     var powerSmoothing: Double = 3
     /// ERG soft start, gentle ramps and low-cadence back-off.
     var ergProtection: Bool = true
+    /// Ride online with other Bikeinside users on the same route.
+    var multiplayerEnabled: Bool = true
+    /// Room code; riders with the same code (and route) see each other. "alla" = public.
+    var multiplayerRoom: String = "alla"
 
     init() {}
 
@@ -28,6 +32,8 @@ struct AppSettings: Codable, Equatable {
         showRiderNames = try c.decodeIfPresent(Bool.self, forKey: .showRiderNames) ?? d.showRiderNames
         powerSmoothing = try c.decodeIfPresent(Double.self, forKey: .powerSmoothing) ?? d.powerSmoothing
         ergProtection = try c.decodeIfPresent(Bool.self, forKey: .ergProtection) ?? d.ergProtection
+        multiplayerEnabled = try c.decodeIfPresent(Bool.self, forKey: .multiplayerEnabled) ?? d.multiplayerEnabled
+        multiplayerRoom = try c.decodeIfPresent(String.self, forKey: .multiplayerRoom) ?? d.multiplayerRoom
     }
 }
 

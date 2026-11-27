@@ -23,7 +23,7 @@ struct HUDState {
     var powerSource: SensorRole?
     var workout: RideEngine.WorkoutStatus?
     var segment: (segment: RouteSegment, progress: Double, seconds: Double)?
-    var leaderboard: [(name: String, gapMeters: Double, gapSeconds: Double, wattsPerKg: Double, isPlayer: Bool)] = []
+    var leaderboard: [RideEngine.LeaderboardRow] = []
     var botRouteFractions: [Double] = []
     var trainerMode: String = ""
 }
@@ -72,6 +72,8 @@ final class RideController {
     @ObservationIgnored private var hudAccumulator = 0.0
     @ObservationIgnored private var trainerAccumulator = 0.0
     @ObservationIgnored private let showNames: Bool
+    /// Live multiplayer (nil when disabled in settings).
+    let multiplayer: MultiplayerClient?
 
     var usesVirtualPower: Bool { bluetooth.powerSource() == nil }
 
@@ -84,7 +86,10 @@ final class RideController {
         ergEnabled = config.ergEnabled
         trainerDifficulty = config.trainerDifficulty
         showNames = settings.showRiderNames
+        multiplayer = settings.multiplayerEnabled
+            ? MultiplayerClient(routeId: config.route.id, room: settings.multiplayerRoom) : nil
         virtualPower = (config.rider.ftp * 0.65).rounded()
+        multiplayer?.start()
         Task { await load() }
     }
 
@@ -130,6 +135,11 @@ final class RideController {
         }
         engine.tick(dt: dt, inputs: inputs)
         world.update(engine: engine, dt: isPaused ? 0 : dt, cameraMode: cameraMode)
+
+        if let mp = multiplayer {
+            engine.setRemoteRiders(mp.riders(routeId: engine.route.id))
+            if !isPaused { mp.publish(engine.broadcastState(id: mp.id)) }
+        }
 
         trainerAccumulator += dt
         if trainerAccumulator >= 0.1 {
@@ -231,6 +241,7 @@ final class RideController {
     }
 
     func finish(save: Bool) {
+        multiplayer?.stop()
         showEndConfirm = false
         bluetooth.setTrainerTarget(.none)
         let record = engine.finish(startDate: startDate)

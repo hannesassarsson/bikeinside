@@ -260,7 +260,7 @@ public final class RideEngine {
         let here = route.sample(at: distance)
         grade = here.grade
         params.airDensity = CyclingPhysics.airDensity(altitude: here.elevation)
-        draftFactor = Drafting.dragFactor(position: distance, others: bots.map(\.distance), loopLength: nil)
+        draftFactor = Drafting.dragFactor(position: distance, others: bots.map(\.distance) + remoteRiders.map(\.effectiveDistance), loopLength: nil)
         speed = CyclingPhysics.step(speed: speed, power: p, grade: grade, dt: dt, params: params, draftFactor: draftFactor)
         let previous = distance
         distance += speed * dt
@@ -427,13 +427,64 @@ public final class RideEngine {
     }
 
     /// Riders sorted by gap to the player (positive = ahead), for the HUD.
-    public func leaderboard() -> [(name: String, gapMeters: Double, gapSeconds: Double, wattsPerKg: Double, isPlayer: Bool)] {
-        var rows = bots.map { b -> (String, Double, Double, Double, Bool) in
+    public struct LeaderboardRow: Equatable, Sendable {
+        public var name: String
+        public var gapMeters: Double
+        public var gapSeconds: Double
+        public var wattsPerKg: Double
+        public var isPlayer: Bool
+        /// A real person riding online (not a bot).
+        public var isRemote: Bool
+    }
+
+    public func leaderboard() -> [LeaderboardRow] {
+        let pace = max(speed, 3)
+        var rows = bots.map { b in
             let gap = b.distance - distance
-            return (b.profile.name, gap, gap / max(speed, 3), b.power / b.profile.weightKg, false)
+            return LeaderboardRow(name: b.profile.name, gapMeters: gap, gapSeconds: gap / pace,
+                                  wattsPerKg: b.power / b.profile.weightKg, isPlayer: false, isRemote: false)
         }
-        rows.append((config.rider.name, 0, 0, wattsPerKg, true))
-        return rows.sorted { $0.1 > $1.1 }.map { (name: $0.0, gapMeters: $0.1, gapSeconds: $0.2, wattsPerKg: $0.3, isPlayer: $0.4) }
+        for r in remoteRiders {
+            let gap = r.effectiveDistance - distance
+            rows.append(LeaderboardRow(name: r.state.name, gapMeters: gap, gapSeconds: gap / pace,
+                                       wattsPerKg: r.state.wattsPerKg, isPlayer: false, isRemote: true))
+        }
+        rows.append(LeaderboardRow(name: config.rider.name, gapMeters: 0, gapSeconds: 0, wattsPerKg: wattsPerKg, isPlayer: true, isRemote: false))
+        return rows.sorted { $0.gapMeters > $1.gapMeters }
+    }
+
+    // MARK: Online riders
+
+    public struct Remote: Sendable {
+        public var state: RemoteRiderState
+        /// Their position expressed in this rider's distance frame (closest lap).
+        public var effectiveDistance: Double
+        /// Metres right of the road centre (assigned so riders don't overlap).
+        public var lateral: Double
+    }
+
+    public private(set) var remoteRiders: [Remote] = []
+
+    /// Online riders on the same route; positions are mapped onto the nearest
+    /// lap so someone a lap ahead still shows up next to you if you're close.
+    public func setRemoteRiders(_ riders: [RemoteRiderState]) {
+        let L = route.length
+        let mine = route.normalize(distance)
+        let lanes = [-0.8, 0.2, -1.8, 2.0, -2.6, 1.4]
+        remoteRiders = riders.enumerated().map { k, s in
+            var gap = route.normalize(s.distance) - mine
+            if route.isLoop {
+                if gap > L / 2 { gap -= L }
+                if gap < -L / 2 { gap += L }
+            }
+            return Remote(state: s, effectiveDistance: distance + gap, lateral: lanes[k % lanes.count])
+        }
+    }
+
+    /// Payload this rider broadcasts.
+    public func broadcastState(id: String) -> RemoteRiderState {
+        RemoteRiderState(id: id, name: config.rider.name, jersey: config.rider.jerseyColorIndex, heightCm: config.rider.heightCm,
+                         routeId: route.id, distance: distance, speed: speed, power: power3s, wattsPerKg: wattsPerKg, cadence: cadence)
     }
 
     /// Packages the ride for saving and export.
