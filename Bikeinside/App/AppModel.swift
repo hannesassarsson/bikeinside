@@ -65,11 +65,12 @@ final class AppModel {
         settings = storage.load(AppSettings.self, from: "settings.json") ?? AppSettings()
         personalBests = storage.load([String: Double].self, from: "personal-bests.json") ?? [:]
         importedWorkouts = storage.load([Workout].self, from: "workouts.json") ?? []
-        history = storage.loadRideIndex()
+        let store = Storage()
+        let rides = store.loadRideIndex()
+        history = rides
         hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "onboarded")
-        let routeIds = RouteLibrary.all.map(\.id)
-        progression = storage.load(Progression.self, from: "progression.json")
-            ?? Progression.rebuild(from: history, allRouteIds: routeIds)
+        progression = store.load(Progression.self, from: "progression.json")
+            ?? Progression.rebuild(from: rides, allRouteIds: RouteLibrary.all.map(\.id))
     }
 
     var allWorkouts: [Workout] { WorkoutLibrary.all + importedWorkouts }
