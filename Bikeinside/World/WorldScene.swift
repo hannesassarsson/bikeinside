@@ -17,6 +17,7 @@ final class WorldScene {
     private var sharedMeshes: RiderEntity.SharedMeshes?
     private var riderMaterial: CustomMaterial?
     private var iblEntity: Entity?
+    private var ghost: RiderEntity?
     private let route: Route
     private let terrain: Terrain
     private let atmosphere: Atmosphere
@@ -118,6 +119,28 @@ final class WorldScene {
         }
     }
 
+    private func updateGhost(_ engine: RideEngine, dt: Double) {
+        guard let d = engine.ghostDistance else {
+            ghost?.isHidden = true
+            return
+        }
+        if ghost == nil, let shared = sharedMeshes, let mat = riderMaterial,
+           let g = try? RiderEntity(jersey: SIMD3(0.85, 0.92, 1.0), heightCm: engine.config.rider.heightCm,
+                                    name: "Spöke", shared: shared, material: mat) {
+            g.root.components.set(OpacityComponent(opacity: 0.4))
+            root.addChild(g.root)
+            applyLighting(g.root)
+            ghost = g
+        }
+        guard let ghost else { return }
+        let near = abs(d - engine.distance) < 600
+        ghost.isHidden = !near
+        guard near else { return }
+        let pose = roadPose(distance: d, lateral: -1.0)
+        ghost.place(at: pose.position, heading: pose.heading, grade: pose.grade)
+        ghost.animate(dt: dt, speed: engine.speed, cadence: 88, power: engine.power)
+    }
+
     private func updateRemotes(_ riders: [RideEngine.Remote], dt: Double) {
         let ids = Set(riders.map(\.state.id))
         for (id, entity) in remotes where !ids.contains(id) {
@@ -164,6 +187,7 @@ final class WorldScene {
         }
 
         updateRemotes(engine.remoteRiders, dt: dt)
+        updateGhost(engine, dt: dt)
 
         updateCamera(rider: me.position, heading: me.heading, grade: me.grade, mode: cameraMode, dt: dt)
         player.isHidden = cameraMode == .firstPerson

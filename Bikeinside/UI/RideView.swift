@@ -113,6 +113,9 @@ struct HUDOverlay: View {
                     if let seg = hud.segment {
                         SegmentPanel(segment: seg.segment, progress: seg.progress, seconds: seg.seconds, route: controller.engine.route)
                     }
+                    if let gap = hud.ghostGap {
+                        GhostPanel(gap: gap, lapSeconds: hud.ghostLapSeconds)
+                    }
                     BannerStack(banners: controller.banners)
                 }
                 .frame(width: 330, alignment: .leading)
@@ -379,6 +382,30 @@ struct ComplianceBar: View {
             }
         }
         .frame(height: 12)
+    }
+}
+
+struct GhostPanel: View {
+    let gap: Double
+    let lapSeconds: Double?
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "figure.outdoor.cycle")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(.white.opacity(0.7))
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Spöket" + (lapSeconds.map { " · bästa varv \(Format.duration($0))" } ?? ""))
+                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(Theme.textSecondary)
+                Text(gap >= 0 ? "\(Format.number(gap, decimals: 1)) s före" : "\(Format.number(-gap, decimals: 1)) s efter")
+                    .font(.system(size: 18, weight: .heavy, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(gap >= 0 ? Theme.good : Theme.bad)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .glass()
     }
 }
 

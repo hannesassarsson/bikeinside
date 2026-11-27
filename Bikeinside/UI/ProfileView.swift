@@ -61,6 +61,9 @@ struct ProfileView: View {
                         .frame(width: 280)
                         Toggle("Autopaus när du slutar trampa", isOn: $model.settings.autoPause)
                         Toggle("Visa namn ovanför medcyklister", isOn: $model.settings.showRiderNames)
+                        Toggle("Röstcoach (svenska)", isOn: $model.settings.voiceCoach)
+                        Toggle("Ljudeffekter och vindljud", isOn: $model.settings.soundEffects)
+                        Toggle("Tävla mot spöket (ditt snabbaste varv)", isOn: $model.settings.ghostEnabled)
                         Picker("Standardkamera", selection: $model.settings.cameraMode) {
                             ForEach(CameraMode.allCases) { Text($0.title).tag($0) }
                         }

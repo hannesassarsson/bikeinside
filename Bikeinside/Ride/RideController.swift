@@ -26,6 +26,8 @@ struct HUDState {
     var leaderboard: [RideEngine.LeaderboardRow] = []
     var botRouteFractions: [Double] = []
     var trainerMode: String = ""
+    var ghostGap: Double?
+    var ghostLapSeconds: Double?
 }
 
 struct Banner: Identifiable, Equatable {
@@ -74,6 +76,7 @@ final class RideController {
     @ObservationIgnored private let showNames: Bool
     /// Live multiplayer (nil when disabled in settings).
     let multiplayer: MultiplayerClient?
+    @ObservationIgnored let coach: CoachAudio
 
     var usesVirtualPower: Bool { bluetooth.powerSource() == nil }
 
@@ -89,6 +92,7 @@ final class RideController {
         multiplayer = settings.multiplayerEnabled
             ? MultiplayerClient(routeId: config.route.id, room: settings.multiplayerRoom) : nil
         virtualPower = (config.rider.ftp * 0.65).rounded()
+        coach = CoachAudio(voice: settings.voiceCoach, sounds: settings.soundEffects)
         multiplayer?.start()
         Task { await load() }
     }
@@ -147,7 +151,11 @@ final class RideController {
             bluetooth.setTrainerTarget(isPaused ? .none : engine.trainerTarget)
         }
 
-        for e in engine.drainEvents() { handle(e) }
+        coach.update(engine: engine, paused: isPaused, ftp: ftp)
+        for e in engine.drainEvents() {
+            handle(e)
+            coach.handle(e, route: engine.route)
+        }
 
         hudAccumulator += dt
         if hudAccumulator >= 0.1 {
@@ -179,6 +187,8 @@ final class RideController {
         h.segment = engine.activeSegment
         h.leaderboard = engine.leaderboard()
         h.botRouteFractions = engine.bots.map { engine.route.normalize($0.distance) / engine.route.length }
+        h.ghostGap = engine.ghostGapSeconds
+        h.ghostLapSeconds = engine.config.ghost?.lapSeconds
         switch engine.trainerTarget {
         case .erg(let w): h.trainerMode = "ERG \(w) W"
         case .simulation(let g, _, _): h.trainerMode = "SIM \(Format.number(g, decimals: 1)) %"
@@ -242,6 +252,7 @@ final class RideController {
 
     func finish(save: Bool) {
         multiplayer?.stop()
+        coach.stop()
         showEndConfirm = false
         bluetooth.setTrainerTarget(.none)
         let record = engine.finish(startDate: startDate)

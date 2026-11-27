@@ -48,6 +48,8 @@ final class AppModel {
     var personalBests: [String: Double] { didSet { storage.save(personalBests, to: "personal-bests.json") } }
     var importedWorkouts: [Workout] { didSet { storage.save(importedWorkouts, to: "workouts.json") } }
     private(set) var history: [RideRecord]
+    /// Fastest lap per route, raced as a ghost.
+    private(set) var ghosts: [String: GhostTrack] { didSet { storage.save(ghosts, to: "ghosts.json") } }
     private(set) var progression: Progression { didSet { storage.save(progression, to: "progression.json") } }
 
     var selectedRouteId: String = RouteLibrary.all[0].id
@@ -66,6 +68,7 @@ final class AppModel {
         personalBests = storage.load([String: Double].self, from: "personal-bests.json") ?? [:]
         importedWorkouts = storage.load([Workout].self, from: "workouts.json") ?? []
         let store = Storage()
+        ghosts = store.load([String: GhostTrack].self, from: "ghosts.json") ?? [:]
         let rides = store.loadRideIndex()
         history = rides
         hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "onboarded")
@@ -105,7 +108,8 @@ final class AppModel {
         let config = RideEngine.Configuration(
             route: route, rider: profile, mode: mode, trainerDifficulty: settings.trainerDifficulty,
             ergEnabled: settings.ergEnabled, bots: bots, personalBests: personalBests, autoPause: settings.autoPause,
-            powerSmoothing: settings.powerSmoothing, ergProtection: settings.ergProtection)
+            powerSmoothing: settings.powerSmoothing, ergProtection: settings.ergProtection,
+            ghost: settings.ghostEnabled ? ghosts[route.id] : nil)
         let controller = RideController(config: config, bluetooth: bluetooth, settings: settings)
         controller.onFinish = { [weak self] record in self?.finishRide(record) }
         screen = .ride(controller)
@@ -115,6 +119,8 @@ final class AppModel {
         var workoutCompleted = false
         if case .ride(let c) = screen {
             workoutCompleted = c.engine.workoutStatus?.isFinished == true
+            let routeId = c.engine.route.id
+            if let lap = c.engine.bestLap(beating: ghosts[routeId]) { ghosts[routeId] = lap }
             personalBests.merge(c.engine.personalBests) { min($0, $1) }
             settings.cameraMode = c.cameraMode
         }

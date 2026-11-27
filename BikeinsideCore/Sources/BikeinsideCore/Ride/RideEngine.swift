@@ -71,11 +71,13 @@ public final class RideEngine {
         public var powerSmoothing: Double
         /// Protects the rider in ERG: soft start, gentle ramps, and backing off when cadence collapses.
         public var ergProtection: Bool
+        /// Fastest previous lap on this route, replayed as a ghost.
+        public var ghost: GhostTrack?
 
         public init(
             route: Route, rider: RiderProfile, mode: RideMode = .freeRide, trainerDifficulty: Double = 0.5,
             ergEnabled: Bool = true, bots: [BotProfile] = [], personalBests: [String: Double] = [:], autoPause: Bool = true,
-            powerSmoothing: Double = 3, ergProtection: Bool = true
+            powerSmoothing: Double = 3, ergProtection: Bool = true, ghost: GhostTrack? = nil
         ) {
             self.route = route
             self.rider = rider
@@ -87,6 +89,7 @@ public final class RideEngine {
             self.autoPause = autoPause
             self.powerSmoothing = powerSmoothing
             self.ergProtection = ergProtection
+            self.ghost = ghost
         }
     }
 
@@ -166,6 +169,10 @@ public final class RideEngine {
     /// ERG power actually sent to the trainer (after protection), nil when not in ERG.
     public private(set) var ergCommand: Double?
     public private(set) var ergAdjustment: ErgAdjustment = .none
+    private var lapStartDistance = 0.0
+    private var trace = LapTraceRecorder()
+    /// Traces of every lap completed this ride (candidates for a new ghost).
+    public private(set) var completedLaps: [GhostTrack] = []
     private var lowCadenceTime = 0.0
     private var cadenceGuardActive = false
 
@@ -280,6 +287,7 @@ public final class RideEngine {
 
         updateErg(dt: dt)
 
+        trace.add(lapTime: timerTime - lapStartTimer, lapDistance: distance - lapStartDistance)
         updateSegments(from: previous, to: distance)
         updateWorkout()
         updateBots(dt: dt)
@@ -336,8 +344,16 @@ public final class RideEngine {
     private func updateSegments(from a: Double, to b: Double) {
         if crossed(0, from: a, to: b) {
             lapCount += 1
-            events.append(.lapCompleted(lap: lapCount, seconds: timerTime - lapStartTimer))
+            let lapSeconds = timerTime - lapStartTimer
+            events.append(.lapCompleted(lap: lapCount, seconds: lapSeconds))
+            let marks = Int(route.length / trace.step) + 1
+            if trace.times.count >= marks {
+                completedLaps.append(GhostTrack(routeId: route.id, lapSeconds: lapSeconds, step: trace.step,
+                                                times: Array(trace.times.prefix(marks))))
+            }
             lapStartTimer = timerTime
+            lapStartDistance += route.length
+            trace.reset()
         }
         if Int(b / 1000) > Int(a / 1000) { events.append(.kilometer(Int(b / 1000))) }
         for seg in route.segments {
@@ -451,6 +467,30 @@ public final class RideEngine {
         }
         rows.append(LeaderboardRow(name: config.rider.name, gapMeters: 0, gapSeconds: 0, wattsPerKg: wattsPerKg, isPlayer: true, isRemote: false))
         return rows.sorted { $0.gapMeters > $1.gapMeters }
+    }
+
+    // MARK: Ghost
+
+    private var lapTime: Double { timerTime - lapStartTimer }
+
+    /// Ghost position in this rider's distance frame, if racing a ghost on this route.
+    public var ghostDistance: Double? {
+        guard let g = config.ghost, g.routeId == route.id else { return nil }
+        return lapStartDistance + g.distance(atTime: lapTime)
+    }
+
+    /// Seconds ahead (+) or behind (−) the ghost at the current point of the lap.
+    public var ghostGapSeconds: Double? {
+        guard let g = config.ghost, g.routeId == route.id else { return nil }
+        let lapDistance = distance - lapStartDistance
+        return g.time(atDistance: lapDistance) - lapTime
+    }
+
+    /// The fastest lap of this ride, if it beats `existing`.
+    public func bestLap(beating existing: GhostTrack?) -> GhostTrack? {
+        guard let best = completedLaps.min(by: { $0.lapSeconds < $1.lapSeconds }) else { return nil }
+        if let e = existing, e.routeId == best.routeId, e.lapSeconds <= best.lapSeconds { return nil }
+        return best
     }
 
     // MARK: Online riders

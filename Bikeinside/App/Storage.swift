@@ -17,6 +17,10 @@ struct AppSettings: Codable, Equatable {
     var multiplayerEnabled: Bool = true
     /// Room code; riders with the same code (and route) see each other. "alla" = public.
     var multiplayerRoom: String = "alla"
+    var voiceCoach: Bool = true
+    var soundEffects: Bool = true
+    /// Race your fastest previous lap on the route.
+    var ghostEnabled: Bool = true
 
     init() {}
 
@@ -34,6 +38,9 @@ struct AppSettings: Codable, Equatable {
         ergProtection = try c.decodeIfPresent(Bool.self, forKey: .ergProtection) ?? d.ergProtection
         multiplayerEnabled = try c.decodeIfPresent(Bool.self, forKey: .multiplayerEnabled) ?? d.multiplayerEnabled
         multiplayerRoom = try c.decodeIfPresent(String.self, forKey: .multiplayerRoom) ?? d.multiplayerRoom
+        voiceCoach = try c.decodeIfPresent(Bool.self, forKey: .voiceCoach) ?? d.voiceCoach
+        soundEffects = try c.decodeIfPresent(Bool.self, forKey: .soundEffects) ?? d.soundEffects
+        ghostEnabled = try c.decodeIfPresent(Bool.self, forKey: .ghostEnabled) ?? d.ghostEnabled
     }
 }
 
