@@ -22,11 +22,16 @@ public struct BotProfile: Codable, Equatable, Sendable, Identifiable {
     public static func group(wattsPerKg: Double, count: Int, seed: UInt64) -> [BotProfile] {
         let names = ["Astrid", "Bosse", "Cecilia", "Dag", "Ebba", "Fredrik", "Greta", "Hugo", "Ingrid", "Johan", "Karin", "Lars", "Maja", "Nils", "Olivia", "Per"]
         var rng = SeededRandom(seed: seed)
+        // unique names: shuffle once, then take in order
+        var pool = names
+        for i in stride(from: pool.count - 1, to: 0, by: -1) {
+            pool.swapAt(i, Int(rng.unit() * Double(i + 1)) % (i + 1))
+        }
         return (0..<count).map { k in
             let w = rng.range(58, 88)
             let jitter = rng.range(-0.15, 0.15)
             return BotProfile(
-                id: "bot-\(seed)-\(k)", name: names[Int(rng.unit() * Double(names.count)) % names.count],
+                id: "bot-\(seed)-\(k)", name: pool[k % pool.count],
                 weightKg: w, heightCm: 160 + (w - 55) * 0.9 + rng.range(-5, 5),
                 wattsPerKg: max(1.0, wattsPerKg + jitter), jerseyColorIndex: Int(rng.unit() * 8) % 8)
         }

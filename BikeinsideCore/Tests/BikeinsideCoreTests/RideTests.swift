@@ -186,6 +186,7 @@ import Testing
 
     @Test func botsRideAndDraftHelps() {
         let bots = BotProfile.group(wattsPerKg: 3.0, count: 6, seed: 1)
+        #expect(Set(bots.map(\.name)).count == 6, "bot names are unique")
         let e = RideEngine(config: .init(route: route, rider: RiderProfile(weightKg: 75), bots: bots))
         for _ in 0..<(120 * 10) { e.tick(dt: 0.1, inputs: RideInputs(power: 225)) }
         #expect(e.bots.allSatisfy { $0.distance > 500 && $0.speed > 7 })
