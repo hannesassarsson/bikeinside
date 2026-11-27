@@ -91,9 +91,12 @@ extension Calendar {
         return c
     }
 
+    /// Monday 00:00 of the week containing `date` (independent of locale rules).
     public func startOfWeek(for date: Date) -> Date {
-        let comps = dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
-        return self.date(from: comps) ?? startOfDay(for: date)
+        let day = startOfDay(for: date)
+        let weekday = component(.weekday, from: day) // 1 = Sunday … 7 = Saturday
+        let sinceMonday = (weekday + 5) % 7
+        return self.date(byAdding: .day, value: -sinceMonday, to: day) ?? day
     }
 }
 

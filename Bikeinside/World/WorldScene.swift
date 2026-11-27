@@ -115,15 +115,15 @@ final class WorldScene {
             // Streaks of rain in a box that follows the camera.
             var p = ParticleEmitterComponent()
             p.emitterShape = .box
-            p.emitterShapeSize = SIMD3(40, 1, 40)
+            p.emitterShapeSize = SIMD3(24, 1, 24)
             p.birthLocation = .volume
             p.emissionDirection = SIMD3(0.05, -1, 0)
             p.speed = 14
-            p.mainEmitter.birthRate = 9000
+            p.mainEmitter.birthRate = 16000
             p.mainEmitter.lifeSpan = 1.3
-            p.mainEmitter.size = 0.012
-            p.mainEmitter.stretchFactor = 14
-            p.mainEmitter.color = .constant(.single(NSColor(calibratedWhite: 0.85, alpha: 0.45)))
+            p.mainEmitter.size = 0.03
+            p.mainEmitter.stretchFactor = 22
+            p.mainEmitter.color = .constant(.single(NSColor(calibratedWhite: 0.92, alpha: 0.75)))
             let e = Entity()
             e.components.set(p)
             root.addChild(e)

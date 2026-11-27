@@ -57,3 +57,17 @@ import Testing
         #expect(curve.map(\.watts) == [800, 450, 260])
     }
 }
+
+@Suite struct WeekStartTests {
+    @Test(arguments: ["2026-11-22", "2026-11-23", "2026-11-26", "2026-11-28", "2026-11-29"])
+    func startOfWeekIsMonday(day: String) {
+        let cal = Calendar.swedish
+        let f = DateFormatter()
+        f.timeZone = cal.timeZone
+        f.dateFormat = "yyyy-MM-dd"
+        let d = f.date(from: day)!
+        let m = cal.startOfWeek(for: d)
+        #expect(cal.component(.weekday, from: m) == 2)
+        #expect(m <= d && d.timeIntervalSince(m) < 7 * 86400)
+    }
+}
