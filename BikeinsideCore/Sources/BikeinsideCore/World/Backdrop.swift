@@ -31,6 +31,13 @@ public enum Backdrop {
                 Ring(radius: half + 2200, minHeight: 120, maxHeight: 380, lowColor: Float3(0.24, 0.34, 0.34),
                      highColor: Float3(0.30, 0.40, 0.42), snowAbove: nil, wavelength: 6),
             ]
+        case .coast:
+            return [
+                Ring(radius: half + 600, minHeight: 0, maxHeight: 70, lowColor: Float3(0.40, 0.40, 0.36),
+                     highColor: Float3(0.22, 0.36, 0.22), snowAbove: nil, wavelength: 11),
+                Ring(radius: half + 2400, minHeight: 0, maxHeight: 110, lowColor: Float3(0.32, 0.38, 0.40),
+                     highColor: Float3(0.30, 0.40, 0.38), snowAbove: nil, wavelength: 9),
+            ]
         case .lake:
             return [
                 Ring(radius: half + 1500, minHeight: 40, maxHeight: 220, lowColor: Float3(0.18, 0.30, 0.20),
@@ -46,7 +53,7 @@ public enum Backdrop {
         var m = Mesh()
         let cx = terrain.originX + terrain.width / 2
         let cz = terrain.originZ + terrain.depth / 2
-        let base = route.minElevation - 60
+        let base = route.theme == .coast ? (route.waterLevel ?? 0) - 25 : route.minElevation - 60
         let noise = ValueNoise2D(seed: route.seed &+ 404)
         for (ri, ring) in rings(for: route, terrain: terrain).enumerated() {
             let samples = 240

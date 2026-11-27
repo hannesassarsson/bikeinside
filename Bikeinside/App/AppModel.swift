@@ -9,7 +9,7 @@ final class AppModel {
     enum Screen {
         case home
         case ride(RideController)
-        case summary(RideRecord, isNew: Bool)
+        case summary(RideRecord, isNew: Bool, update: Progression.Update?)
     }
 
     enum Section: String, CaseIterable, Identifiable {
@@ -48,6 +48,7 @@ final class AppModel {
     var personalBests: [String: Double] { didSet { storage.save(personalBests, to: "personal-bests.json") } }
     var importedWorkouts: [Workout] { didSet { storage.save(importedWorkouts, to: "workouts.json") } }
     private(set) var history: [RideRecord]
+    private(set) var progression: Progression { didSet { storage.save(progression, to: "progression.json") } }
 
     var selectedRouteId: String = RouteLibrary.all[0].id
     /// nil = free ride
@@ -66,6 +67,9 @@ final class AppModel {
         importedWorkouts = storage.load([Workout].self, from: "workouts.json") ?? []
         history = storage.loadRideIndex()
         hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "onboarded")
+        let routeIds = RouteLibrary.all.map(\.id)
+        progression = storage.load(Progression.self, from: "progression.json")
+            ?? Progression.rebuild(from: history, allRouteIds: routeIds)
     }
 
     var allWorkouts: [Workout] { WorkoutLibrary.all + importedWorkouts }
@@ -99,14 +103,17 @@ final class AppModel {
             seed: UInt64(Date().timeIntervalSince1970))
         let config = RideEngine.Configuration(
             route: route, rider: profile, mode: mode, trainerDifficulty: settings.trainerDifficulty,
-            ergEnabled: settings.ergEnabled, bots: bots, personalBests: personalBests, autoPause: settings.autoPause)
+            ergEnabled: settings.ergEnabled, bots: bots, personalBests: personalBests, autoPause: settings.autoPause,
+            powerSmoothing: settings.powerSmoothing, ergProtection: settings.ergProtection)
         let controller = RideController(config: config, bluetooth: bluetooth, settings: settings)
         controller.onFinish = { [weak self] record in self?.finishRide(record) }
         screen = .ride(controller)
     }
 
     private func finishRide(_ record: RideRecord?) {
+        var workoutCompleted = false
         if case .ride(let c) = screen {
+            workoutCompleted = c.engine.workoutStatus?.isFinished == true
             personalBests.merge(c.engine.personalBests) { min($0, $1) }
             settings.cameraMode = c.cameraMode
         }
@@ -117,18 +124,19 @@ final class AppModel {
         }
         history.insert(record.withoutSamples, at: 0)
         storage.saveRide(record, index: history)
-        screen = .summary(record, isNew: true)
+        let update = progression.apply(record, workoutCompleted: workoutCompleted, allRouteIds: RouteLibrary.all.map(\.id))
+        screen = .summary(record, isNew: true, update: update)
     }
 
     func openRide(_ summary: RideRecord) {
         guard let full = storage.loadRide(id: summary.id) else { return }
-        screen = .summary(full, isNew: false)
+        screen = .summary(full, isNew: false, update: nil)
     }
 
     func deleteRide(_ ride: RideRecord) {
         history.removeAll { $0.id == ride.id }
         storage.deleteRide(id: ride.id, index: history)
-        if case .summary(let r, _) = screen, r.id == ride.id { screen = .home }
+        if case .summary(let r, _, _) = screen, r.id == ride.id { screen = .home }
     }
 
     func closeSummary() {

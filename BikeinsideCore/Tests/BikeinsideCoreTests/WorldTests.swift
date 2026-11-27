@@ -67,6 +67,14 @@ import Testing
             #expect(terrain.roadDistance(x: p.x, z: p.z, route: route) < 0.01)
             #expect(terrain.roadDistance(x: p.x, z: p.z) < terrain.cellSize)
         }
+        if route.theme == .coast, let w = route.waterLevel {
+            // island: the loop's inside is land, beyond the shore is sea
+            let insideLand = zip(terrain.heights, terrain.insideLoop).filter { $0.1 }.filter { Double($0.0) > w }.count
+            let insideAll = terrain.insideLoop.filter { $0 }.count
+            #expect(Double(insideLand) / Double(max(insideAll, 1)) > 0.9, "island interior is land")
+            let sea = terrain.heights.filter { Double($0) < w - 2 }.count
+            #expect(Double(sea) / Double(terrain.heights.count) > 0.3, "sea around the island")
+        }
         if route.theme == .lake, let w = route.waterLevel {
             let underwater = terrain.heights.filter { Double($0) < w - 1 }.count
             #expect(Double(underwater) / Double(terrain.heights.count) > 0.15, "lake missing")

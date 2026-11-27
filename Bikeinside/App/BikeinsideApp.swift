@@ -50,8 +50,8 @@ struct RootView: View {
             case .ride(let controller):
                 RideView(controller: controller)
                     .transition(.opacity)
-            case .summary(let record, let isNew):
-                SummaryView(record: record, isNew: isNew)
+            case .summary(let record, let isNew, let update):
+                SummaryView(record: record, isNew: isNew, update: update)
                     .transition(.opacity)
             }
         }

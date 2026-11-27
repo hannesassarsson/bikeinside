@@ -1,7 +1,19 @@
 import Foundation
 
 public enum SceneryTheme: String, Codable, Sendable, CaseIterable {
-    case forest, lake, mountain
+    case forest, lake, mountain, coast
+}
+
+/// Road surface: affects rolling resistance (speed and trainer feel) and looks.
+public enum RoadSurface: String, Codable, Sendable {
+    case asphalt, gravel
+
+    public var crr: Double {
+        switch self {
+        case .asphalt: return 0.004
+        case .gravel: return 0.0085
+        }
+    }
 }
 
 public struct RouteSegment: Codable, Sendable, Identifiable, Equatable {
@@ -48,11 +60,12 @@ public struct Route: Sendable, Identifiable {
     public let segments: [RouteSegment]
     /// Water surface height for scenery (nil = no lakes).
     public let waterLevel: Double?
+    public let surface: RoadSurface
 
     public init(
         id: String, name: String, summary: String, theme: SceneryTheme, isLoop: Bool, seed: UInt64,
         spacing: Double, points: [Vec3], grades: [Double], headings: [Vec2], length: Double,
-        totalAscent: Double, segments: [RouteSegment], waterLevel: Double?
+        totalAscent: Double, segments: [RouteSegment], waterLevel: Double?, surface: RoadSurface = .asphalt
     ) {
         self.id = id
         self.name = name
@@ -68,6 +81,7 @@ public struct Route: Sendable, Identifiable {
         self.totalAscent = totalAscent
         self.segments = segments
         self.waterLevel = waterLevel
+        self.surface = surface
     }
 
     public var minElevation: Double { points.map(\.y).min() ?? 0 }

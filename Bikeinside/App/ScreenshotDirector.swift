@@ -61,6 +61,8 @@ final class ScreenshotDirector {
             ("skogsslingan", nil, .chase, false),
             ("sjorundan", WorkoutLibrary.sweetSpot3x10.id, .close, false),
             ("fjallvagen", nil, .chase, true),
+            ("skargardsvagen", nil, .chase, false),
+            ("grusvagen", nil, .chase, false),
         ]
         var lastController: RideController?
         for (i, tour) in tours.enumerated() {
@@ -88,7 +90,7 @@ final class ScreenshotDirector {
                 if !tour.untilClimb, Double(steps) * 0.1 >= target { break }
             }
             await wait(2.5) // let real frames render and HUD/camera settle
-            capture(String(format: "%02d-cykla-%@", 5 + i, tour.route), scene: c)
+            capture("0\(5 + i)-cykla-\(tour.route)", scene: c)
             if i == 0 {
                 c.cameraMode = .side
                 await wait(1.5)

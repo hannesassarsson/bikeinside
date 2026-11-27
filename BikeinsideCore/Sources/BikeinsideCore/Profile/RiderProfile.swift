@@ -42,6 +42,9 @@ public struct RiderProfile: Codable, Sendable, Equatable {
         SIMD3(0.45, 0.20, 0.65), // lila
         SIMD3(0.12, 0.12, 0.14), // svart
         SIMD3(0.92, 0.92, 0.94), // vit
+        SIMD3(0.95, 0.42, 0.66), // rosa
+        SIMD3(0.08, 0.68, 0.68), // turkos
+        SIMD3(0.86, 0.66, 0.16), // guld
     ]
 
     public var wattsPerKgAtFTP: Double { ftp / max(weightKg, 1) }

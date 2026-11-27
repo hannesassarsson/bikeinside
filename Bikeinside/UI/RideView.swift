@@ -107,7 +107,8 @@ struct HUDOverlay: View {
             HStack(alignment: .top, spacing: 14) {
                 VStack(alignment: .leading, spacing: 12) {
                     if let ws = hud.workout {
-                        WorkoutPanel(status: ws, ftp: ftp, intensity: controller.engine.workoutIntensity, ergEnabled: controller.ergEnabled, currentPower: hud.power3s)
+                        WorkoutPanel(status: ws, ftp: ftp, intensity: controller.engine.workoutIntensity, ergEnabled: controller.ergEnabled,
+                                     currentPower: hud.power3s, ergNote: ergNote(controller.engine))
                     }
                     if let seg = hud.segment {
                         SegmentPanel(segment: seg.segment, progress: seg.progress, seconds: seg.seconds, route: controller.engine.route)
@@ -163,6 +164,16 @@ private struct Glass: ViewModifier {
 
 extension View {
     func glass(_ radius: CGFloat = 14) -> some View { modifier(Glass(radius: radius)) }
+}
+
+@MainActor
+private func ergNote(_ e: RideEngine) -> String? {
+    switch e.ergAdjustment {
+    case .none: return nil
+    case .softStart: return "Mjukstart – effekten trappas upp"
+    case .ramping: return "Trappar upp till \(Int(e.workoutStatus?.targetWatts ?? 0)) W"
+    case .lowCadence: return "Låg kadens – sänkt till \(Int(e.ergCommand ?? 0)) W. Öka kadensen!"
+    }
 }
 
 struct MainMetrics: View {
@@ -270,6 +281,7 @@ struct WorkoutPanel: View {
     let intensity: Double
     let ergEnabled: Bool
     let currentPower: Double
+    var ergNote: String? = nil
 
     var body: some View {
         let w = status.workout
@@ -316,6 +328,11 @@ struct WorkoutPanel: View {
                 }
                 if let t = status.targetWatts, !ergEnabled {
                     ComplianceBar(target: t, actual: currentPower)
+                }
+                if ergEnabled, let note = ergNote {
+                    Label(note, systemImage: "shield.lefthalf.filled")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Theme.warn)
                 }
                 if let cad = step.cadence {
                     Label("Kadens \(cad) rpm", systemImage: "arrow.triangle.2.circlepath")

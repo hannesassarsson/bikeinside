@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 struct SummaryView: View {
     let record: RideRecord
     let isNew: Bool
+    var update: Progression.Update? = nil
     @Environment(AppModel.self) private var model
     @State private var exporting = false
     @State private var ftpApplied = false
@@ -32,6 +33,10 @@ struct SummaryView: View {
                     Button(isNew ? "Klar" : "Tillbaka") { model.closeSummary() }
                         .buttonStyle(PrimaryButtonStyle())
                         .keyboardShortcut(.defaultAction)
+                }
+
+                if let u = update {
+                    ProgressionCard(update: u)
                 }
 
                 if let ftp = record.ftpEstimate {
@@ -242,5 +247,45 @@ struct FITDocument: FileDocument {
 
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
         FileWrapper(regularFileWithContents: data)
+    }
+}
+
+/// XP, level-ups, achievements and unlocked jerseys from the ride just saved.
+struct ProgressionCard: View {
+    let update: Progression.Update
+
+    var body: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 14) {
+                    Image(systemName: update.leveledUp ? "arrow.up.circle.fill" : "sparkles")
+                        .font(.system(size: 30))
+                        .foregroundStyle(Theme.accent)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("+\(update.xpGained) XP").font(.system(size: 20, weight: .heavy, design: .rounded))
+                        Text(update.leveledUp ? "Ny nivå: \(update.levelAfter)!" : "Nivå \(update.levelAfter)")
+                            .foregroundStyle(update.leveledUp ? Theme.warn : Theme.textSecondary)
+                    }
+                    Spacer()
+                    if !update.newJerseys.isEmpty {
+                        HStack(spacing: 6) {
+                            Text("Ny tröja:").font(.system(size: 12)).foregroundStyle(Theme.textSecondary)
+                            ForEach(update.newJerseys, id: \.self) { i in
+                                Circle().fill(Theme.jersey(i)).frame(width: 22, height: 22)
+                            }
+                        }
+                    }
+                }
+                ForEach(update.newAchievements, id: \.self) { id in
+                    if let a = Achievement.with(id: id) {
+                        Label {
+                            Text("\(a.title) – \(a.detail)").font(.system(size: 13, weight: .semibold))
+                        } icon: {
+                            Image(systemName: a.symbol).foregroundStyle(Theme.warn)
+                        }
+                    }
+                }
+            }
+        }
     }
 }

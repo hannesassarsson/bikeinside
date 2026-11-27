@@ -67,10 +67,15 @@ public final class RideEngine {
         /// Best known times per segment id, for PR detection.
         public var personalBests: [String: Double]
         public var autoPause: Bool
+        /// Seconds of averaging for the displayed power (1, 3 or 5 are typical).
+        public var powerSmoothing: Double
+        /// Protects the rider in ERG: soft start, gentle ramps, and backing off when cadence collapses.
+        public var ergProtection: Bool
 
         public init(
             route: Route, rider: RiderProfile, mode: RideMode = .freeRide, trainerDifficulty: Double = 0.5,
-            ergEnabled: Bool = true, bots: [BotProfile] = [], personalBests: [String: Double] = [:], autoPause: Bool = true
+            ergEnabled: Bool = true, bots: [BotProfile] = [], personalBests: [String: Double] = [:], autoPause: Bool = true,
+            powerSmoothing: Double = 3, ergProtection: Bool = true
         ) {
             self.route = route
             self.rider = rider
@@ -80,7 +85,17 @@ public final class RideEngine {
             self.bots = bots
             self.personalBests = personalBests
             self.autoPause = autoPause
+            self.powerSmoothing = powerSmoothing
+            self.ergProtection = ergProtection
         }
+    }
+
+    /// Why the ERG target currently differs from the workout target (for the HUD).
+    public enum ErgAdjustment: Equatable, Sendable {
+        case none
+        case softStart
+        case ramping
+        case lowCadence
     }
 
     public struct Bot: Sendable {
@@ -148,10 +163,15 @@ public final class RideEngine {
     private var lastWorkoutStep: Int?
     private var workoutDone = false
     private var powerHistory: [(t: Double, p: Double)] = []
+    /// ERG power actually sent to the trainer (after protection), nil when not in ERG.
+    public private(set) var ergCommand: Double?
+    public private(set) var ergAdjustment: ErgAdjustment = .none
+    private var lowCadenceTime = 0.0
+    private var cadenceGuardActive = false
 
     public init(config: Configuration) {
         self.config = config
-        self.params = PhysicsParameters(rider: config.rider)
+        self.params = PhysicsParameters(rider: config.rider, crr: config.route.surface.crr)
         self.lastElevation = config.route.sample(at: 0).elevation
         var rng = SeededRandom(seed: 4242)
         let lanes = [-1.6, -0.4, 0.4, 1.6, 2.4, -2.4]
@@ -175,10 +195,12 @@ public final class RideEngine {
     /// Current position on the road (wrapped for loops).
     public var routeSample: RouteSample { route.sample(at: distance) }
 
-    /// Rolling 3-second average power, as shown in the HUD.
+    /// Rolling average power over `powerSmoothing` seconds, as shown in the HUD.
     public var power3s: Double {
-        guard !powerHistory.isEmpty else { return 0 }
-        return powerHistory.reduce(0) { $0 + $1.p } / Double(powerHistory.count)
+        let window = max(config.powerSmoothing, 0.01)
+        let recent = powerHistory.filter { elapsed - $0.t < window }
+        guard !recent.isEmpty else { return power }
+        return recent.reduce(0) { $0 + $1.p } / Double(recent.count)
     }
 
     public var wattsPerKg: Double { power3s / max(config.rider.weightKg, 1) }
@@ -195,8 +217,9 @@ public final class RideEngine {
 
     /// What the trainer should do this instant.
     public var trainerTarget: TrainerTarget {
-        if config.ergEnabled, let ws = workoutStatus, !ws.isFinished {
-            if let t = ws.targetWatts { return .erg(watts: Int(t.rounded())) }
+        if config.ergEnabled, let ws = workoutStatus, !ws.isFinished, let t = ws.targetWatts {
+            let watts = config.ergProtection ? (ergCommand ?? t) : t
+            return .erg(watts: Int(watts.rounded()))
         }
         let rho = CyclingPhysics.airDensity(altitude: routeSample.elevation)
         let cw = 0.5 * rho * params.cda * draftFactor
@@ -211,11 +234,12 @@ public final class RideEngine {
 
     public func updateRider(_ rider: RiderProfile) {
         config.rider = rider
-        params = PhysicsParameters(rider: rider)
+        params = PhysicsParameters(rider: rider, crr: config.route.surface.crr)
     }
 
     public func setTrainerDifficulty(_ d: Double) { config.trainerDifficulty = Interp.clamp(d, 0, 1) }
     public func setErgEnabled(_ on: Bool) { config.ergEnabled = on }
+    public func setPowerSmoothing(_ seconds: Double) { config.powerSmoothing = Interp.clamp(seconds, 0.5, 10) }
 
     // MARK: Simulation
 
@@ -252,12 +276,53 @@ public final class RideEngine {
         }
 
         powerHistory.append((elapsed, p))
-        while let f = powerHistory.first, elapsed - f.t > 3 { powerHistory.removeFirst() }
+        while let f = powerHistory.first, elapsed - f.t > 10 { powerHistory.removeFirst() }
+
+        updateErg(dt: dt)
 
         updateSegments(from: previous, to: distance)
         updateWorkout()
         updateBots(dt: dt)
         record()
+    }
+
+    /// ERG protection: soft start over the first 20 s, upward changes ramped at
+    /// 40 W/s (downward instant), and a 30 % back-off while cadence is below 55 rpm
+    /// so the rider can spin back up instead of grinding to a halt.
+    private func updateErg(dt: Double) {
+        guard config.ergEnabled, let ws = workoutStatus, !ws.isFinished, let target = ws.targetWatts else {
+            ergCommand = nil
+            ergAdjustment = .none
+            return
+        }
+        guard config.ergProtection else {
+            ergCommand = target
+            ergAdjustment = .none
+            return
+        }
+        var goal = target
+        var reason = ErgAdjustment.none
+        if workoutElapsed < 20 {
+            goal = target * (0.5 + 0.5 * workoutElapsed / 20)
+            reason = .softStart
+        }
+        if let c = cadence {
+            if c < 55 && !isAutoPaused { lowCadenceTime += dt } else if c > 70 { lowCadenceTime = 0 }
+            if lowCadenceTime > 2 { cadenceGuardActive = true }
+            if cadenceGuardActive && c > 70 { cadenceGuardActive = false }
+        }
+        if cadenceGuardActive && target > 0.5 * config.rider.ftp {
+            goal = min(goal, target * 0.7)
+            reason = .lowCadence
+        }
+        let current = ergCommand ?? goal
+        if goal > current {
+            ergCommand = min(goal, current + 40 * dt)
+            if reason == .none && goal - ergCommand! > 1 { reason = .ramping }
+        } else {
+            ergCommand = goal
+        }
+        ergAdjustment = reason
     }
 
     private func crossed(_ mark: Double, from a: Double, to b: Double) -> Bool {

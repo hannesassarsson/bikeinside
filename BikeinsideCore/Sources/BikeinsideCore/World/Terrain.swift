@@ -11,6 +11,10 @@ public struct TerrainStyle: Sendable {
     public var snowLine: Double?
     /// Carve a lake inside the loop.
     public var lakeInsideLoop: Bool
+    /// Sea everywhere outside the loop (the route circles an island).
+    public var seaOutsideLoop: Bool = false
+    /// Bare granite slabs ("hällar") along the shore and on hilltops.
+    public var graniteShore: Bool = false
 
     public static func forTheme(_ theme: SceneryTheme) -> TerrainStyle {
         switch theme {
@@ -23,6 +27,12 @@ public struct TerrainStyle: Sendable {
         case .mountain:
             return TerrainStyle(hillAmplitude: 55, hillWavelength: 700, mountainAmplitude: 700, forestCoverage: 0.32,
                                 treeLine: 540, snowLine: 760, lakeInsideLoop: false)
+        case .coast:
+            var s = TerrainStyle(hillAmplitude: 22, hillWavelength: 380, mountainAmplitude: 0, forestCoverage: 0.42,
+                                 treeLine: nil, snowLine: nil, lakeInsideLoop: false)
+            s.seaOutsideLoop = true
+            s.graniteShore = true
+            return s
         }
     }
 }
@@ -241,6 +251,10 @@ public struct Terrain: Sendable {
                     let near = style.mountainAmplitude > 300 ? 120.0 : 260.0
                     h += style.mountainAmplitude * pow(m, 1.4) * (0.75 + 0.25 * ridge) * Interp.smoothstep(near, near + 1100, d)
                 }
+                if style.seaOutsideLoop, !inside[node], let w = route.waterLevel {
+                    // the island's shore starts a little outside the road
+                    h = Interp.mix(h, w - 14, Interp.smoothstep(22, 150, d))
+                }
                 if style.lakeInsideLoop, inside[node], let w = route.waterLevel {
                     // shore starts right by the road so the lake is visible while riding
                     h = Interp.mix(h, w - 9, Interp.smoothstep(14, 120, d))
@@ -342,6 +356,12 @@ public struct Terrain: Sendable {
         }
         let slope = 1 - Double(n.y) // 0 flat … 1 vertical
         col = mix(col, rock, Interp.smoothstep(0.18, 0.34, slope + v * 0.04))
+        if style.graniteShore {
+            let granite = Float3(0.66, 0.56, 0.52)
+            let nearShore = waterLevel.map { 1 - Interp.smoothstep($0 + 2, $0 + 7, p.y) } ?? 0
+            let exposed = Interp.smoothstep(0.15, 0.45, v + 0.25 * slope * 4)
+            col = mix(col, granite * Float(0.9 + 0.2 * v), max(nearShore * 0.85, exposed * 0.7))
+        }
         if let sl = style.snowLine {
             let snowAmount = Interp.smoothstep(sl - 40, sl + 40, p.y + v * 40) * (1 - Interp.smoothstep(0.35, 0.5, slope))
             col = mix(col, snow, snowAmount)

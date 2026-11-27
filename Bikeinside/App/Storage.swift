@@ -9,6 +9,26 @@ struct AppSettings: Codable, Equatable {
     var paceGroup: PaceGroup = .tempo
     var cameraMode: CameraMode = .chase
     var showRiderNames: Bool = true
+    /// Seconds of power averaging in the HUD.
+    var powerSmoothing: Double = 3
+    /// ERG soft start, gentle ramps and low-cadence back-off.
+    var ergProtection: Bool = true
+
+    init() {}
+
+    // Decode leniently so new settings don't reset older saved files.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = AppSettings()
+        trainerDifficulty = try c.decodeIfPresent(Double.self, forKey: .trainerDifficulty) ?? d.trainerDifficulty
+        ergEnabled = try c.decodeIfPresent(Bool.self, forKey: .ergEnabled) ?? d.ergEnabled
+        autoPause = try c.decodeIfPresent(Bool.self, forKey: .autoPause) ?? d.autoPause
+        paceGroup = try c.decodeIfPresent(PaceGroup.self, forKey: .paceGroup) ?? d.paceGroup
+        cameraMode = try c.decodeIfPresent(CameraMode.self, forKey: .cameraMode) ?? d.cameraMode
+        showRiderNames = try c.decodeIfPresent(Bool.self, forKey: .showRiderNames) ?? d.showRiderNames
+        powerSmoothing = try c.decodeIfPresent(Double.self, forKey: .powerSmoothing) ?? d.powerSmoothing
+        ergProtection = try c.decodeIfPresent(Bool.self, forKey: .ergProtection) ?? d.ergProtection
+    }
 }
 
 enum PaceGroup: String, Codable, CaseIterable, Identifiable {

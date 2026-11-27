@@ -36,15 +36,29 @@ struct ProfileView: View {
                         SectionTitle("Tröja")
                         HStack(spacing: 10) {
                             ForEach(RiderProfile.jerseyPalette.indices, id: \.self) { i in
+                                let unlocked = model.progression.isJerseyUnlocked(i)
                                 Circle()
                                     .fill(Theme.jersey(i))
                                     .frame(width: 30, height: 30)
+                                    .opacity(unlocked ? 1 : 0.3)
                                     .overlay(Circle().strokeBorder(.white, lineWidth: model.profile.jerseyColorIndex == i ? 3 : 0))
-                                    .onTapGesture { model.profile.jerseyColorIndex = i }
+                                    .overlay {
+                                        if !unlocked { Image(systemName: "lock.fill").font(.system(size: 11)) }
+                                    }
+                                    .help(unlocked ? "" : "Låses upp på nivå \(Progression.jerseyUnlockLevel[i] ?? 1)")
+                                    .onTapGesture { if unlocked { model.profile.jerseyColorIndex = i } }
                             }
                         }
                         SectionTitle("Åkning").padding(.top, 8)
                         Toggle("ERG-läge i träningspass", isOn: $model.settings.ergEnabled)
+                        Toggle("ERG-skydd (mjukstart och sänkt effekt vid låg kadens)", isOn: $model.settings.ergProtection)
+                        Picker("Utjämning av watt", selection: $model.settings.powerSmoothing) {
+                            Text("1 s").tag(1.0)
+                            Text("3 s").tag(3.0)
+                            Text("5 s").tag(5.0)
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 280)
                         Toggle("Autopaus när du slutar trampa", isOn: $model.settings.autoPause)
                         Toggle("Visa namn ovanför medcyklister", isOn: $model.settings.showRiderNames)
                         Picker("Standardkamera", selection: $model.settings.cameraMode) {
@@ -81,6 +95,7 @@ struct ProfileView: View {
                     }
                 }
             }
+            AchievementsGrid(progression: model.progression)
         }
     }
 
@@ -125,6 +140,48 @@ private struct NumberField: View {
                 .multilineTextAlignment(.trailing)
             Stepper("", value: $value, in: range, step: step).labelsHidden()
             Text(unit).foregroundStyle(Theme.textSecondary)
+        }
+    }
+}
+
+struct AchievementsGrid: View {
+    let progression: Progression
+
+    var body: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    SectionTitle("Utmärkelser")
+                    Spacer()
+                    Text("\(progression.achievements.count) av \(Achievement.all.count)")
+                        .font(.system(size: 12)).foregroundStyle(Theme.textSecondary)
+                }
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 10)], spacing: 10) {
+                    ForEach(Achievement.all) { a in
+                        let earned = progression.achievements.contains(a.id)
+                        HStack(spacing: 10) {
+                            Image(systemName: a.symbol)
+                                .font(.system(size: 18))
+                                .foregroundStyle(earned ? Theme.warn : Theme.textSecondary)
+                                .frame(width: 26)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(a.title).font(.system(size: 13, weight: .bold))
+                                Text(a.detail).font(.system(size: 11)).foregroundStyle(Theme.textSecondary)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(10)
+                        .background(Color.white.opacity(earned ? 0.08 : 0.03), in: RoundedRectangle(cornerRadius: 10))
+                        .opacity(earned ? 1 : 0.55)
+                    }
+                }
+                HStack(spacing: 24) {
+                    StatTile(title: "Totalt", value: Format.km(progression.totalDistance, decimals: 0), unit: "km")
+                    StatTile(title: "Höjdmeter", value: "\(Int(progression.totalAscent))", unit: "m")
+                    StatTile(title: "Pass", value: "\(progression.workouts)")
+                    StatTile(title: "Nivå", value: "\(progression.level)", unit: "\(progression.xp) XP")
+                }
+            }
         }
     }
 }

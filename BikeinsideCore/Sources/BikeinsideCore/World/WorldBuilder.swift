@@ -108,12 +108,22 @@ public enum WorldBuilder {
         }
 
         // gravel shoulders that dip into the terrain bed so no seams show
-        ribbon(from: half, to: half + 1.6, dy: -0.02, color: shoulder, dropOuter: 0.5)
-        ribbon(from: -half - 1.6, to: -half, dy: -0.02, color: shoulder, dropOuter: 0.5)
-        ribbon(from: -half, to: half, dy: 0, color: asphalt)
-        ribbon(from: half - 0.35, to: half - 0.2, dy: 0.012, color: paint)
-        ribbon(from: -half + 0.2, to: -half + 0.35, dy: 0.012, color: paint)
-        ribbon(from: -0.07, to: 0.07, dy: 0.012, color: paint, dashed: true)
+        if route.surface == .gravel {
+            // Swedish gravel road: grey-brown, two worn wheel tracks, grassy verges, no paint.
+            let gravel = Float3(0.58, 0.52, 0.43), track = Float3(0.47, 0.42, 0.35), verge = Float3(0.36, 0.44, 0.24)
+            ribbon(from: half, to: half + 1.6, dy: -0.02, color: verge, dropOuter: 0.5)
+            ribbon(from: -half - 1.6, to: -half, dy: -0.02, color: verge, dropOuter: 0.5)
+            ribbon(from: -half, to: half, dy: 0, color: gravel)
+            ribbon(from: 0.9, to: 1.7, dy: 0.008, color: track)
+            ribbon(from: -1.7, to: -0.9, dy: 0.008, color: track)
+        } else {
+            ribbon(from: half, to: half + 1.6, dy: -0.02, color: shoulder, dropOuter: 0.5)
+            ribbon(from: -half - 1.6, to: -half, dy: -0.02, color: shoulder, dropOuter: 0.5)
+            ribbon(from: -half, to: half, dy: 0, color: asphalt)
+            ribbon(from: half - 0.35, to: half - 0.2, dy: 0.012, color: paint)
+            ribbon(from: -half + 0.2, to: -half + 0.35, dy: 0.012, color: paint)
+            ribbon(from: -0.07, to: 0.07, dy: 0.012, color: paint, dashed: true)
+        }
         fixWinding(&m)
         return m
     }
@@ -296,7 +306,7 @@ public enum WorldBuilder {
         }
 
         // Rocks: more on mountains, a few boulders elsewhere.
-        let rockCount = route.theme == .mountain ? 1400 : 350
+        let rockCount = route.theme == .mountain ? 1400 : (route.theme == .coast ? 1800 : 350)
         var placed = 0, attempts = 0
         while placed < rockCount && attempts < rockCount * 20 {
             attempts += 1

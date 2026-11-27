@@ -36,11 +36,12 @@ public struct RouteBlueprint: Sendable {
     public var climbNames: [String]
     public var sprints: [SprintSpec]
     public var waterLevel: Double?
+    public var surface: RoadSurface
 
     public init(
         id: String, name: String, summary: String, theme: SceneryTheme, seed: UInt64,
         controlPoints: [Vec2], elevation: [ElevationKey], climbNames: [String] = [],
-        sprints: [SprintSpec] = [], waterLevel: Double? = nil
+        sprints: [SprintSpec] = [], waterLevel: Double? = nil, surface: RoadSurface = .asphalt
     ) {
         self.id = id
         self.name = name
@@ -52,6 +53,7 @@ public struct RouteBlueprint: Sendable {
         self.climbNames = climbNames
         self.sprints = sprints
         self.waterLevel = waterLevel
+        self.surface = surface
     }
 }
 
@@ -131,7 +133,7 @@ public enum RouteBuilder {
         return Route(
             id: bp.id, name: bp.name, summary: bp.summary, theme: bp.theme, isLoop: true,
             seed: bp.seed, spacing: spacing, points: points, grades: grades, headings: headings,
-            length: total, totalAscent: ascent, segments: segments, waterLevel: bp.waterLevel)
+            length: total, totalAscent: ascent, segments: segments, waterLevel: bp.waterLevel, surface: bp.surface)
     }
 
     // MARK: - Curves

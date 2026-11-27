@@ -131,7 +131,7 @@ import Testing
 
     @Test func ergTargetsFollowWorkoutAndIntensity() {
         let w = WorkoutLibrary.vo2max5x3
-        let e = RideEngine(config: .init(route: route, rider: RiderProfile(ftp: 200), mode: .workout(w)))
+        let e = RideEngine(config: .init(route: route, rider: RiderProfile(ftp: 200), mode: .workout(w), ergProtection: false))
         e.tick(dt: 0.1, inputs: RideInputs(power: 150))
         #expect(e.trainerTarget == .erg(watts: 90)) // 45 % of 200
         e.workoutIntensity = 1.1
@@ -291,5 +291,87 @@ enum MiniFITReader {
         }
         guard i == end else { throw Err() }
         return out
+    }
+}
+
+@Suite struct ErgProtectionTests {
+    let route = RouteBuilder.build(RouteLibrary.sjorundan)
+
+    func engine(_ steps: [WorkoutStep], protection: Bool = true) -> RideEngine {
+        let w = Workout(id: "t", name: "t", summary: "", category: .custom, steps: steps)
+        return RideEngine(config: .init(route: route, rider: RiderProfile(ftp: 200), mode: .workout(w), ergProtection: protection))
+    }
+
+    func ergWatts(_ e: RideEngine) -> Int? {
+        if case .erg(let w) = e.trainerTarget { return w }
+        return nil
+    }
+
+    @Test func softStartRampsToTarget() {
+        let e = engine([WorkoutStep(kind: .work, duration: 600, start: .watts(200), label: "x")])
+        e.tick(dt: 0.1, inputs: RideInputs(power: 150, cadence: 90))
+        #expect((ergWatts(e) ?? 0) < 120, "starts around half")
+        #expect(e.ergAdjustment == .softStart)
+        for _ in 0..<250 { e.tick(dt: 0.1, inputs: RideInputs(power: 150, cadence: 90)) }
+        #expect(ergWatts(e) == 200)
+        #expect(e.ergAdjustment == .none)
+    }
+
+    @Test func stepUpIsRampedStepDownIsInstant() {
+        let e = engine([
+            WorkoutStep(kind: .work, duration: 60, start: .watts(150), label: "a"),
+            WorkoutStep(kind: .work, duration: 60, start: .watts(300), label: "b"),
+            WorkoutStep(kind: .work, duration: 60, start: .watts(100), label: "c"),
+        ])
+        for _ in 0..<605 { e.tick(dt: 0.1, inputs: RideInputs(power: 150, cadence: 90)) }
+        let justAfter = ergWatts(e) ?? 0
+        #expect(justAfter > 150 && justAfter < 300, "ramping, got \(justAfter)")
+        for _ in 0..<50 { e.tick(dt: 0.1, inputs: RideInputs(power: 250, cadence: 90)) }
+        #expect(ergWatts(e) == 300)
+        for _ in 0..<560 { e.tick(dt: 0.1, inputs: RideInputs(power: 300, cadence: 90)) }
+        #expect(ergWatts(e) == 100, "drop applied immediately")
+    }
+
+    @Test func lowCadenceBacksOffUntilSpinningAgain() {
+        let e = engine([WorkoutStep(kind: .work, duration: 600, start: .watts(200), label: "x")])
+        for _ in 0..<300 { e.tick(dt: 0.1, inputs: RideInputs(power: 200, cadence: 90)) }
+        #expect(ergWatts(e) == 200)
+        for _ in 0..<30 { e.tick(dt: 0.1, inputs: RideInputs(power: 200, cadence: 45)) }
+        #expect(ergWatts(e) == 140)
+        #expect(e.ergAdjustment == .lowCadence)
+        for _ in 0..<10 { e.tick(dt: 0.1, inputs: RideInputs(power: 140, cadence: 60)) }
+        #expect(ergWatts(e) == 140, "still protecting between 55 and 70 rpm")
+        for _ in 0..<60 { e.tick(dt: 0.1, inputs: RideInputs(power: 140, cadence: 85)) }
+        #expect(ergWatts(e) == 200)
+    }
+
+    @Test func protectionCanBeDisabled() {
+        let e = engine([WorkoutStep(kind: .work, duration: 600, start: .watts(200), label: "x")], protection: false)
+        e.tick(dt: 0.1, inputs: RideInputs(power: 150, cadence: 40))
+        #expect(ergWatts(e) == 200)
+    }
+
+    @Test func powerSmoothingWindow() {
+        let e = RideEngine(config: .init(route: route, rider: .default, powerSmoothing: 1))
+        for _ in 0..<50 { e.tick(dt: 0.1, inputs: RideInputs(power: 100)) }
+        for _ in 0..<10 { e.tick(dt: 0.1, inputs: RideInputs(power: 300)) }
+        #expect(abs(e.power3s - 300) < 25, "1 s window follows quickly")
+        e.setPowerSmoothing(5)
+        #expect(e.power3s < 200)
+    }
+
+    @Test func gravelIsSlowerAndFeelsHeavier() {
+        let gravel = RouteBuilder.build(RouteLibrary.grusvagen)
+        #expect(gravel.surface == .gravel)
+        let g = RideEngine(config: .init(route: gravel, rider: .default))
+        let a = RideEngine(config: .init(route: route, rider: .default))
+        for _ in 0..<600 {
+            g.tick(dt: 0.1, inputs: RideInputs(power: 200))
+            a.tick(dt: 0.1, inputs: RideInputs(power: 200))
+        }
+        if case .simulation(_, let crr, _) = g.trainerTarget { #expect(crr > 0.008) } else { Issue.record("sim") }
+        let flatGravel = CyclingPhysics.steadyStateSpeed(power: 200, grade: 0, params: PhysicsParameters(rider: .default, crr: 0.0085))
+        let flatAsphalt = CyclingPhysics.steadyStateSpeed(power: 200, grade: 0, params: PhysicsParameters(rider: .default, crr: 0.004))
+        #expect(flatGravel < flatAsphalt - 0.4)
     }
 }

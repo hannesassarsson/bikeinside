@@ -27,6 +27,11 @@ struct Atmosphere {
                 zenith: SIMD3(0.28, 0.42, 0.75), horizon: SIMD3(0.95, 0.80, 0.64),
                 sunDirection: SIMD3(0.55, -0.42, -0.6), sunColor: NSColor(calibratedRed: 1, green: 0.84, blue: 0.66, alpha: 1),
                 sunIntensity: 8000, ambientExponent: 0.9, fogEnd: 2000, cloudiness: 0.3)
+        case .coast:
+            return Atmosphere(
+                zenith: SIMD3(0.20, 0.46, 0.86), horizon: SIMD3(0.80, 0.88, 0.95),
+                sunDirection: SIMD3(0.35, -0.6, -0.7), sunColor: NSColor(calibratedRed: 1, green: 0.97, blue: 0.90, alpha: 1),
+                sunIntensity: 10500, ambientExponent: 1.0, fogEnd: 2600, cloudiness: 0.35)
         case .mountain:
             return Atmosphere(
                 zenith: SIMD3(0.12, 0.32, 0.72), horizon: SIMD3(0.72, 0.81, 0.92),

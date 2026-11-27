@@ -101,7 +101,7 @@ struct StartRideView: View {
             header
 
             SectionTitle("Välj värld")
-            HStack(spacing: 16) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 250), spacing: 16)], spacing: 16) {
                 ForEach(RouteLibrary.all, id: \.id) { bp in
                     RouteCard(route: model.route(id: bp.id), selected: model.selectedRouteId == bp.id)
                         .onTapGesture { model.selectedRouteId = bp.id }
@@ -195,6 +195,9 @@ struct StartRideView: View {
                     .font(.system(size: 34, weight: .heavy, design: .rounded))
                 Text("FTP \(Int(model.profile.ftp)) W · \(Format.number(model.profile.wattsPerKgAtFTP, decimals: 2)) W/kg")
                     .foregroundStyle(Theme.textSecondary)
+                LevelBar(progression: model.progression)
+                    .frame(width: 320)
+                    .padding(.top, 6)
             }
             Spacer()
             HStack(spacing: 24) {
@@ -250,7 +253,7 @@ struct RouteCard: View {
                 LinearGradient(colors: themeColors, startPoint: .top, endPoint: .bottom)
                 ElevationProfileView(route: route, color: .white)
                     .padding(.top, 34)
-                Text(themeName)
+                Text(themeName + (route.surface == .gravel ? " · GRUS" : ""))
                     .font(.system(size: 10, weight: .heavy))
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background(.black.opacity(0.35), in: Capsule())
@@ -284,6 +287,7 @@ struct RouteCard: View {
         case .forest: return "SKOG"
         case .lake: return "SJÖ"
         case .mountain: return "FJÄLL"
+        case .coast: return "SKÄRGÅRD"
         }
     }
 
@@ -292,6 +296,31 @@ struct RouteCard: View {
         case .forest: return [Color(red: 0.25, green: 0.45, blue: 0.75), Color(red: 0.13, green: 0.35, blue: 0.20)]
         case .lake: return [Color(red: 0.95, green: 0.62, blue: 0.40), Color(red: 0.12, green: 0.32, blue: 0.48)]
         case .mountain: return [Color(red: 0.35, green: 0.55, blue: 0.85), Color(red: 0.40, green: 0.42, blue: 0.48)]
+        case .coast: return [Color(red: 0.45, green: 0.70, blue: 0.95), Color(red: 0.10, green: 0.38, blue: 0.55)]
+        }
+    }
+}
+
+/// Level badge with XP progress towards the next level.
+struct LevelBar: View {
+    let progression: Progression
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text("\(progression.level)")
+                .font(.system(size: 15, weight: .heavy, design: .rounded))
+                .frame(width: 32, height: 32)
+                .background(Theme.accent, in: Circle())
+                .foregroundStyle(.black)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("Nivå \(progression.level)").font(.system(size: 12, weight: .bold))
+                    Spacer()
+                    Text("\(progression.xp - Progression.xpRequired(forLevel: progression.level)) / \(Progression.xpRequired(forLevel: progression.level + 1) - Progression.xpRequired(forLevel: progression.level)) XP")
+                        .font(.system(size: 11)).monospacedDigit().foregroundStyle(Theme.textSecondary)
+                }
+                ProgressView(value: progression.levelProgress).tint(Theme.accent)
+            }
         }
     }
 }
