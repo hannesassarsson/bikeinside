@@ -56,7 +56,10 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: screenKey)
-        .task { ScreenshotDirector.startIfRequested(model: model) }
+        .task {
+            model.refreshHealth()
+            ScreenshotDirector.startIfRequested(model: model)
+        }
         .sheet(isPresented: Binding(
             get: { !model.hasCompletedOnboarding },
             set: { if !$0 { model.hasCompletedOnboarding = true } })

@@ -118,6 +118,9 @@ final class CoachAudio {
         case .workoutFinished:
             play("Hero")
             say("Passet är klart. Snyggt jobbat!", priority: true)
+        case .routeFinished:
+            play("Hero")
+            say("Du är framme! Snyggt jobbat.", priority: true)
         case .workoutStep, .kilometer:
             break
         }

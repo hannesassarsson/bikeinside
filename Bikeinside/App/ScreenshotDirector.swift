@@ -50,6 +50,22 @@ final class ScreenshotDirector {
         }
         await wait(1.0)
 
+        // Demo data: a morning check-in, a custom workout and an imported GPX round.
+        model.checkIn = CheckIn(legs: 2, energy: 3)
+        var b = WorkoutBuilder()
+        b.warmup(minutes: 8)
+        b.intervals(4, on: 240, at: 1.05, off: 120, at: 0.5, label: "Mina 4×4")
+        b.cooldown(minutes: 6)
+        model.saveCustomWorkout(Workout(id: "custom-demo", name: "Mina 4×4", summary: "Eget pass", category: .custom, steps: b.steps))
+        var gpxRouteId: String?
+        do {
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("demo-runda.gpx")
+            try Self.demoGPX().write(to: url, atomically: true, encoding: .utf8)
+            gpxRouteId = try model.importGPX(from: url, theme: .forest).id
+        } catch {
+            log("gpx import failed: \(error)")
+        }
+        model.selectedRouteId = RouteLibrary.all[0].id
         model.screen = .home
         for (name, section) in [("01-start", AppModel.Section.ride), ("02-pass", .workouts), ("03-enheter", .devices), ("04-profil", .profile)] {
             model.section = section
@@ -66,7 +82,7 @@ final class ScreenshotDirector {
             ("skargardsvagen", nil, .chase, false, .rain),
             ("grusvagen", nil, .chase, false, .evening),
             ("milrundan", nil, .chase, false, .fog),
-        ]
+        ] + (gpxRouteId.map { [($0, nil, .chase, false, .day)] } ?? [])
         var lastController: RideController?
         for (i, tour) in tours.enumerated() {
             model.selectedRouteId = tour.route
@@ -134,6 +150,21 @@ final class ScreenshotDirector {
         }
         log("done")
         NSApp.terminate(nil)
+    }
+
+    /// A ~9 km loop with two climbs (synthetic GPX, like an exported Strava route).
+    static func demoGPX() -> String {
+        var s = "<?xml version=\"1.0\"?><gpx version=\"1.1\" creator=\"Bikeinside\"><trk><name>Min hemmarunda</name><trkseg>"
+        let n = 900
+        for i in 0..<n {
+            let t = Double(i) / Double(n)
+            let a = t * 2 * .pi
+            let lat = 59.33 + 0.012 * sin(a) + 0.003 * sin(3 * a)
+            let lon = 18.06 + 0.024 * cos(a) + 0.004 * cos(5 * a)
+            let ele = 30 + 45 * exp(-pow((t - 0.3) / 0.06, 2)) + 30 * exp(-pow((t - 0.72) / 0.05, 2))
+            s += "<trkpt lat=\"\(lat)\" lon=\"\(lon)\"><ele>\(ele)</ele></trkpt>"
+        }
+        return s + "</trkseg></trk></gpx>"
     }
 
     /// Captures the window with the system tool (includes Metal content and

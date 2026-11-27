@@ -4,10 +4,15 @@ import Security
 
 /// Stores the intervals.icu API key in the macOS Keychain (never in files).
 enum IntervalsKeychain {
-    private static let service = "se.bikeinside.intervals"
+    static func load() -> String? { TokenKeychain.load(service: "se.bikeinside.intervals") }
+    static func save(_ key: String?) { TokenKeychain.save(key, service: "se.bikeinside.intervals") }
+}
+
+/// Generic secret storage in the macOS Keychain.
+enum TokenKeychain {
     private static let account = "api-key"
 
-    static func load() -> String? {
+    static func load(service: String) -> String? {
         let q: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
             kSecAttrAccount as String: account, kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne,
@@ -17,7 +22,7 @@ enum IntervalsKeychain {
         return String(data: d, encoding: .utf8)
     }
 
-    static func save(_ key: String?) {
+    static func save(_ key: String?, service: String) {
         let base: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account,
         ]

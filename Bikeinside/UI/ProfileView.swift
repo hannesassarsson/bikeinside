@@ -98,6 +98,7 @@ struct ProfileView: View {
                     }
                 }
             }
+            GarminCard()
             IntervalsCard()
             AchievementsGrid(progression: model.progression)
         }

@@ -6,6 +6,8 @@ struct WorkoutsView: View {
     @Environment(AppModel.self) private var model
     @State private var importing = false
     @State private var importError: String?
+    @State private var editing: Workout?
+    @State private var creating = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -16,6 +18,12 @@ struct WorkoutsView: View {
                         .foregroundStyle(Theme.textSecondary)
                 }
                 Spacer()
+                Button {
+                    creating = true
+                } label: {
+                    Label("Skapa eget pass", systemImage: "plus")
+                }
+                .buttonStyle(PrimaryButtonStyle())
                 Button {
                     importing = true
                 } label: {
@@ -34,7 +42,8 @@ struct WorkoutsView: View {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 14)], spacing: 14) {
                         ForEach(items) { w in
                             WorkoutCard(workout: w, ftp: model.profile.ftp, selected: model.selectedWorkoutId == w.id,
-                                        onRemove: cat == .custom ? { model.removeImportedWorkout(w) } : nil)
+                                        onRemove: cat == .custom ? { model.removeImportedWorkout(w) } : nil,
+                                        onEdit: cat == .custom ? { editing = w } : nil)
                                 .onTapGesture {
                                     model.selectedWorkoutId = w.id
                                     model.section = .ride
@@ -44,6 +53,8 @@ struct WorkoutsView: View {
                 }
             }
         }
+        .sheet(isPresented: $creating) { WorkoutEditor(original: nil) }
+        .sheet(item: $editing) { w in WorkoutEditor(original: w) }
         .fileImporter(isPresented: $importing, allowedContentTypes: [UTType(filenameExtension: "erg") ?? .plainText, UTType(filenameExtension: "mrc") ?? .plainText, .plainText]) { result in
             switch result {
             case .success(let url):
@@ -66,6 +77,7 @@ struct WorkoutCard: View {
     let ftp: Double
     let selected: Bool
     var onRemove: (() -> Void)?
+    var onEdit: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -79,6 +91,11 @@ struct WorkoutCard: View {
                 Spacer()
                 if selected {
                     Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.accent)
+                }
+                if let onEdit {
+                    Button(action: onEdit) { Image(systemName: "pencil") }
+                        .buttonStyle(.borderless)
+                        .help("Redigera passet")
                 }
                 if let onRemove {
                     Button(action: onRemove) { Image(systemName: "trash") }

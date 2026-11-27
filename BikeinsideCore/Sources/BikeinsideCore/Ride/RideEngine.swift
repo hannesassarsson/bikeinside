@@ -50,6 +50,8 @@ public enum RideEvent: Equatable, Sendable {
     case workoutStep(index: Int, step: WorkoutStep)
     case workoutFinished
     case kilometer(Int)
+    /// Reached the end of a point-to-point route.
+    case routeFinished
 }
 
 /// The simulation: integrates rider and bot physics along the route, runs the
@@ -170,6 +172,8 @@ public final class RideEngine {
     public private(set) var ergCommand: Double?
     public private(set) var ergAdjustment: ErgAdjustment = .none
     private var lapStartDistance = 0.0
+    /// True once a point-to-point route has been completed.
+    public private(set) var reachedEnd = false
     private var trace = LapTraceRecorder()
     /// Traces of every lap completed this ride (candidates for a new ghost).
     public private(set) var completedLaps: [GhostTrack] = []
@@ -271,6 +275,14 @@ public final class RideEngine {
         speed = CyclingPhysics.step(speed: speed, power: p, grade: grade, dt: dt, params: params, draftFactor: draftFactor)
         let previous = distance
         distance += speed * dt
+        if !route.isLoop && distance >= route.length {
+            distance = route.length
+            speed = 0
+            if !reachedEnd {
+                reachedEnd = true
+                events.append(.routeFinished)
+            }
+        }
         kilojoules += p * dt / 1000
 
         let there = route.sample(at: distance)

@@ -28,8 +28,13 @@ public enum WorldBuilder {
     public static func build(route: Route, progress: (@Sendable (Double) -> Void)? = nil) -> WorldGeometry {
         progress?(0.05)
         // Long routes get a coarser grid and sparser forest so memory stays bounded.
+        // Long routes get a coarser grid so the node count (memory, time) stays bounded.
         let long = route.length > 15_000
-        let terrain = Terrain.generate(for: route, cellSize: long ? 11 : 8, margin: long ? 600 : 750)
+        let xs = route.points.map(\.x), zs = route.points.map(\.z)
+        let margin = long ? 600.0 : 750.0
+        let area = ((xs.max()! - xs.min()!) + 2 * margin) * ((zs.max()! - zs.min()!) + 2 * margin)
+        let cell = max(long ? 11.0 : 8.0, (area / 1_500_000).squareRoot())
+        let terrain = Terrain.generate(for: route, cellSize: cell, margin: margin)
         progress?(0.4)
         let chunks = terrain.meshChunks()
         progress?(0.55)
@@ -196,6 +201,9 @@ public enum WorldBuilder {
                 translation: Float3(Float(s.position.x), Float(s.position.y), Float(s.position.z)), yaw: yaw))
         }
         place(Primitives.arch(halfWidth: half, color: Float3(0.1, 0.1, 0.1), checkered: true), at: 0)
+        if !route.isLoop {
+            place(Primitives.arch(halfWidth: half, color: Float3(0.1, 0.1, 0.1), checkered: true), at: route.length - 1)
+        }
         for seg in route.segments {
             let color = seg.kind == .climb ? Float3(0.90, 0.38, 0.08) : Float3(0.10, 0.62, 0.30)
             let proto = Primitives.arch(halfWidth: half, color: color, checkered: false)

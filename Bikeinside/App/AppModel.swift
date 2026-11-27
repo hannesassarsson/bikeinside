@@ -79,6 +79,8 @@ final class AppModel {
         personalBests = storage.load([String: Double].self, from: "personal-bests.json") ?? [:]
         importedWorkouts = storage.load([Workout].self, from: "workouts.json") ?? []
         let store = Storage()
+        importedRoutes = store.load([ImportedRoute].self, from: "imported-routes.json") ?? []
+        if let d = UserDefaults.standard.data(forKey: "checkIn") { checkIn = try? JSONDecoder().decode(CheckIn.self, from: d) }
         ghosts = store.load([String: GhostTrack].self, from: "ghosts.json") ?? [:]
         let rides = store.loadRideIndex()
         history = rides
@@ -97,11 +99,97 @@ final class AppModel {
 
     func route(id: String) -> Route {
         if let r = routeCache[id] { return r }
-        let bp = RouteLibrary.blueprint(id: id) ?? RouteLibrary.all[0]
-        let r = RouteBuilder.build(bp)
+        let r: Route
+        if let imp = importedRoutes.first(where: { $0.id == id }), let built = try? GPXImport.buildRoute(imp) {
+            r = built
+        } else {
+            r = RouteBuilder.build(RouteLibrary.blueprint(id: id) ?? RouteLibrary.all[0])
+        }
         routeCache[id] = r
         return r
     }
+
+    // MARK: GPX routes
+
+    /// GPX tracks the rider imported (built into worlds on demand).
+    var importedRoutes: [ImportedRoute] { didSet { storage.save(importedRoutes, to: "imported-routes.json") } }
+
+    var isImported: Bool { importedRoutes.contains { $0.id == selectedRouteId } }
+
+    func importGPX(from url: URL, theme: SceneryTheme) throws -> ImportedRoute {
+        let accessing = url.startAccessingSecurityScopedResource()
+        defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+        let data = try Data(contentsOf: url)
+        let parsed = try GPXImport.parse(data, fallbackName: url.deletingPathExtension().lastPathComponent)
+        let imp = ImportedRoute(id: "gpx-\(String(data.hashValueStableHex.prefix(12)))", name: parsed.name, theme: theme, points: parsed.points)
+        _ = try GPXImport.buildRoute(imp) // validate before saving
+        importedRoutes.removeAll { $0.id == imp.id }
+        importedRoutes.append(imp)
+        routeCache[imp.id] = nil
+        selectedRouteId = imp.id
+        reverseDirection = false
+        return imp
+    }
+
+    func deleteImportedRoute(_ id: String) {
+        importedRoutes.removeAll { $0.id == id }
+        routeCache[id] = nil
+        if selectedRouteId == id { selectedRouteId = RouteLibrary.all[0].id }
+    }
+
+    // MARK: Readiness
+
+    /// Garmin recovery data (via garmin-bridge) and today's check-in.
+    var healthDays: [HealthDay] = []
+    var healthStatus: String?
+    var garminToken: String? = TokenKeychain.load(service: "se.bikeinside.garmin")
+    var checkIn: CheckIn? {
+        didSet { if let c = checkIn, let d = try? JSONEncoder().encode(c) { UserDefaults.standard.set(d, forKey: "checkIn") } }
+    }
+
+    var todayCheckIn: CheckIn? {
+        guard let c = checkIn, Calendar.current.isDateInToday(c.date) else { return nil }
+        return c
+    }
+
+    var readiness: Readiness? {
+        let today = Self.dayString(Date())
+        return Readiness.assess(days: healthDays, checkIn: todayCheckIn, today: today)
+    }
+
+    static func dayString(_ d: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.timeZone = TimeZone(identifier: "Europe/Stockholm")
+        return f.string(from: d)
+    }
+
+    func setGarminToken(_ t: String?) {
+        let v = t?.trimmingCharacters(in: .whitespacesAndNewlines)
+        TokenKeychain.save(v, service: "se.bikeinside.garmin")
+        garminToken = (v?.isEmpty ?? true) ? nil : v
+        refreshHealth()
+    }
+
+    func refreshHealth() {
+        guard let token = garminToken else {
+            healthDays = []
+            healthStatus = nil
+            return
+        }
+        healthStatus = "Hämtar Garmin-data…"
+        Task {
+            do {
+                healthDays = try await HealthService.fetch(token: token)
+                healthStatus = healthDays.isEmpty ? "Ingen Garmin-data de senaste dagarna" : nil
+            } catch {
+                healthStatus = error.localizedDescription
+            }
+        }
+    }
+
+    /// Intensity to start today's workout with (from readiness), 1 = as planned.
+    var suggestedIntensity: Double { readiness?.intensity ?? 1 }
 
     var isRiding: Bool {
         if case .ride = screen { return true }
@@ -112,7 +200,7 @@ final class AppModel {
 
     func startRide() {
         guard !isRiding else { return }
-        let route = route(id: selectedRouteId + (reverseDirection ? RouteLibrary.reversedSuffix : ""))
+        let route = route(id: selectedRouteId + (reverseDirection && !isImported ? RouteLibrary.reversedSuffix : ""))
         profile = profile.sanitized()
         let mode: RideMode = selectedWorkout.map { .workout($0) } ?? .freeRide
         let bots = settings.paceGroup == .none ? [] : BotProfile.group(
@@ -125,6 +213,9 @@ final class AppModel {
             ghost: settings.ghostEnabled ? ghosts[route.id] : nil)
         let controller = RideController(config: config, bluetooth: bluetooth, settings: settings)
         controller.onFinish = { [weak self] record in self?.finishRide(record) }
+        if selectedWorkout != nil, suggestedIntensity < 1 {
+            controller.engine.workoutIntensity = suggestedIntensity
+        }
         screen = .ride(controller)
     }
 
@@ -178,6 +269,14 @@ final class AppModel {
         importedWorkouts.removeAll { $0.id == w.id }
         importedWorkouts.append(w)
         return w
+    }
+
+    func saveCustomWorkout(_ w: Workout) {
+        if let i = importedWorkouts.firstIndex(where: { $0.id == w.id }) {
+            importedWorkouts[i] = w
+        } else {
+            importedWorkouts.append(w)
+        }
     }
 
     func removeImportedWorkout(_ w: Workout) {

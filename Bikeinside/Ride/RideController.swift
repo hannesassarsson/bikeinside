@@ -245,6 +245,8 @@ final class RideController {
             if km % 5 == 0 {
                 push(Banner(symbol: "signpost.right.fill", title: "\(km) km", subtitle: Format.duration(engine.timerTime), color: .white))
             }
+        case .routeFinished:
+            push(Banner(symbol: "flag.checkered", title: "Du är framme!", subtitle: "\(Format.km(engine.distance)) km på \(Format.duration(engine.timerTime))", color: Theme.good))
         }
     }
 

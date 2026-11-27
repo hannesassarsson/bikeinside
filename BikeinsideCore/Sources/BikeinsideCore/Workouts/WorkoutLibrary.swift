@@ -195,3 +195,24 @@ public enum WorkoutFileParser {
         return Workout(id: "import-\(String(hash, radix: 16))", name: name, summary: "Importerat pass", category: .custom, steps: steps)
     }
 }
+
+extension WorkoutFileParser {
+    /// Writes a workout as .mrc (minutes, % of FTP) so it can be shared or used in other apps.
+    public static func mrc(_ w: Workout, ftp: Double) -> String {
+        var lines = [
+            "[COURSE HEADER]", "VERSION = 2", "UNITS = ENGLISH", "DESCRIPTION = \(w.name)",
+            "FILE NAME = \(w.name)", "MINUTES PERCENT", "[END COURSE HEADER]", "[COURSE DATA]",
+        ]
+        var t = 0.0
+        func fmt(_ v: Double) -> String { String(format: "%.2f", v) }
+        for s in w.steps {
+            let a = (s.isFree ? 1 : s.start.fraction(ftp: ftp)) * 100
+            let b = (s.isFree ? 1 : s.end.fraction(ftp: ftp)) * 100
+            lines.append("\(fmt(t / 60))\t\(fmt(a))")
+            t += s.duration
+            lines.append("\(fmt(t / 60))\t\(fmt(b))")
+        }
+        lines.append("[END COURSE DATA]")
+        return lines.joined(separator: "\n") + "\n"
+    }
+}

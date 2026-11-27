@@ -105,6 +105,7 @@ struct StartRideView: View {
                 SectionTitle("Välj värld")
                 Spacer()
                 Toggle("Kör baklänges", isOn: $model.reverseDirection)
+                    .disabled(model.isImported)
                     .toggleStyle(.switch)
                     .font(.system(size: 13, weight: .semibold))
                 Picker("Väder", selection: $model.settings.weather) {
@@ -119,7 +120,23 @@ struct StartRideView: View {
                     RouteCard(route: model.route(id: bp.id), selected: model.selectedRouteId == bp.id)
                         .onTapGesture { model.selectedRouteId = bp.id }
                 }
+                ForEach(model.importedRoutes) { imp in
+                    RouteCard(route: model.route(id: imp.id), selected: model.selectedRouteId == imp.id)
+                        .onTapGesture { model.selectedRouteId = imp.id }
+                        .contextMenu {
+                            Button("Ta bort rundan", role: .destructive) { model.deleteImportedRoute(imp.id) }
+                        }
+                        .overlay(alignment: .topTrailing) {
+                            Text("GPX").font(.system(size: 10, weight: .heavy))
+                                .padding(.horizontal, 7).padding(.vertical, 3)
+                                .background(Theme.accent, in: Capsule()).foregroundStyle(.black)
+                                .padding(22)
+                        }
+                }
+                ImportGPXCard()
             }
+
+            ReadinessCard()
 
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 12) {
